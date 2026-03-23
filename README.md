@@ -1,25 +1,35 @@
 # saving-llm-budget
 
-`saving-llm-budget` is a production-style CLI that routes developer tasks to the best AI coding partner. It compares Claude Code and Codex for each request, scores the options with transparent rules, and returns a recommended workflow that balances cost, fitness, and maintainability.
+`saving-llm-budget` is a cost-aware CLI that helps you route engineering tasks to Claude Code, Codex, or a hybrid workflow. Describe the work, share your constraints, and the tool returns a recommendation with rationale, budget guardrails, and future-proof hooks for advanced features.
 
-## Why it exists
-- AI coding costs vary wildly; teams need a router that thinks about money first.
-- Claude and Codex excel at different jobs. Picking the wrong tool wastes tokens and time.
-- Engineers want an auditable decision trail rather than opaque heuristics.
+## Why this tool exists
+- Model tokens are expensive—picking the wrong provider wastes budget and time.
+- Claude and Codex excel at different types of work; a router helps match task-model fit.
+- Teams want transparent scoring, maintainable logic, and budget policies that can evolve.
 
-## Installation
-```bash
-conda create -n saving-llm-budget python=3.11 -y
-conda activate saving-llm-budget
-pip install -e .
+## Quick start
+1. **Clone** (or download releases):
+   ```bash
+   git clone https://github.com/chien-sheng-liu/saving-llm-budget.git
+   cd saving-llm-budget
+   ```
+2. **Prepare a Python 3.11+ environment** using any workflow you prefer.
+   - Conda example:
+     ```bash
+     conda create -n slb python=3.11 -y
+     conda activate slb
+     ```
+   - Reusing an existing venv/pyenv/system interpreter is fine as long as it meets 3.11+.
+3. **Install**:
+   ```bash
+   pip install -e .
+   ```
+
+## Configure once
 ```
-
-## Configuration
-Run the init command once per machine:
-```bash
 saving-llm-budget init
 ```
-This stores answers in `~/.saving-llm-budget/config.yaml`. Example YAML:
+This stores answers in `~/.saving-llm-budget/config.yaml`. Example:
 ```yaml
 default_mode: balanced
 allow_hybrid: true
@@ -30,55 +40,59 @@ providers:
   codex:
     enabled: true
 ```
-Set API keys outside of git:
+Set API keys via environment variables (no validation yet):
 ```bash
 export ANTHROPIC_API_KEY="sk-ant-..."
 export OPENAI_API_KEY="sk-openai-..."
 ```
 
-## Usage
+## Commands
 | Command | Purpose |
 | --- | --- |
-| `saving-llm-budget init` | Create the local config and document API key usage |
-| `saving-llm-budget ask` | Guided Q&A that routes a task interactively |
-| `saving-llm-budget run "Refactor auth middleware and add tests"` | Non-interactive recommendation for scripts or aliases |
-| `saving-llm-budget estimate "Fix import errors in frontend"` | Get complexity, cost, provider, and workflow |
-| `saving-llm-budget explain` | Inspect the weighted routing rules |
+| `saving-llm-budget init` | Capture defaults, budgets, and provider toggles |
+| `saving-llm-budget ask` | Interactive Q&A that ends with a routing panel |
+| `saving-llm-budget run "Refactor auth middleware" ...` | Non-interactive CLI with flags |
+| `saving-llm-budget estimate "Fix import errors" ...` | Complexity/cost/provider/workflow summary |
+| `saving-llm-budget explain` | Present the scoring rules and weights |
 
 ### Interactive example
 ```
 saving-llm-budget ask
 ```
-Answer prompts about task type, scope, clarity, long context, automation, optional repo path, and whether to enable benchmark notes. The CLI prints a Rich panel with provider, workflow, confidence, reasoning, estimated cost level, guardrails, and follow-up instructions.
+Answer prompts about task description, type, scope, clarity, cost priority, long-context needs, automation, optional repo path, and benchmark mode. Output includes provider/workflow, confidence, reasoning, budget status, repo/diff notes, and policy/benchmark hints.
 
 ### Non-interactive example
 ```
-saving-llm-budget run "Refactor auth middleware and add tests" --task-type refactor --scope module --clarity somewhat_ambiguous --priority balanced --long-context --repo-path . --benchmark
+saving-llm-budget run "Refactor auth middleware and add tests" \
+  --task-type refactor --scope module --clarity somewhat_ambiguous \
+  --priority balanced --long-context --repo-path . --benchmark
 ```
 
 ### Quick estimation
 ```
-saving-llm-budget estimate "Fix import errors in frontend" --task-type bugfix --scope few_files --clarity very_clear --priority cheapest --auto-modify --repo-path ./frontend
+saving-llm-budget estimate "Fix import errors in frontend" \
+  --task-type bugfix --scope few_files --clarity very_clear \
+  --priority cheapest --auto-modify --repo-path ./frontend
 ```
 
-## Routing logic highlights
-- **Claude**: rewarded for architecture, large refactors, ambiguous inputs, repo-wide scope, high-quality priority, and long-context needs.
-- **Codex**: rewarded for bugfixes, tests/docs, small scopes, crystal-clear requirements, automation, and cost-sensitive work.
-- **Hybrid**: enabled when both models are on, the task is a feature or refactor, scope is module/repo, and some ambiguity suggests planning before implementation.
-- Scores start from a baseline, add rule weights, factor in estimator output (complexity, cost, token pressure), then convert into a normalized confidence.
-- Workflows include `direct_claude`, `direct_codex`, `plan_with_claude_then_execute_with_codex`, and `codex_then_claude_review`.
+## Routing highlights
+- **Claude** gains weight on architecture, large refactors, ambiguity, repo-wide scopes, quality-first priorities, and long context needs.
+- **Codex** shines on bugfixes, tests/docs, small scopes, crystal-clear tasks, automation-friendly workflows, and cheapest priorities.
+- **Hybrid** activates when both providers are enabled, tasks are feature/refactor-class, scope is module/repo, and planning before execution makes sense.
+- Scores start from baselines, apply rule weights, incorporate estimator signals (complexity, token pressure, cost level), and respect config toggles. The spread becomes a confidence metric.
+- Available workflows: `direct_claude`, `direct_codex`, `plan_with_claude_then_execute_with_codex`, `codex_then_claude_review`.
 
 ## Architecture & future hooks
-- **Provider adapters** (`saving_llm_budget.providers`) expose a shared protocol so real Claude/Codex integrations can be added without touching the CLI.
-- **Analysis layer** (`saving_llm_budget.analysis`) already contains repo scanning and diff analyzers that currently return stubs but establish the extension point for repo context and git diff analysis.
-- **Budget & policy services** (`saving_llm_budget.services.policies`) centralize guardrail logic, surfacing estimated spend vs. configured budgets right in the CLI output.
-- **Context coordinator** (`saving_llm_budget.services.context`) stitches repo, diff, budget, policy, and benchmark data together before routing, keeping the router itself simple and future-proof.
-- **Benchmark service** (`saving_llm_budget.services.benchmark`) is triggered via `--benchmark` or the interactive toggle, ready to plug into real benchmark workflows.
-- **CLI inputs** already accept repo paths and benchmark flags so adding repo scanning, git diff analysis, budget enforcement, team policies, or benchmark comparisons will not break the existing UX contract.
+- `saving_llm_budget.providers`: shared adapter interface so real Claude/OpenAI integrations can plug in later.
+- `saving_llm_budget.analysis`: repo scanner + diff analyzer stubs to expand into real repo context and git diff insights.
+- `saving_llm_budget.services.policies`: central guardrails for estimated spend and forthcoming team policies.
+- `saving_llm_budget.services.context`: aggregates repo/diff/budget/policy/benchmark signals before routing, keeping the engine simple.
+- `saving_llm_budget.services.benchmark`: activated via `--benchmark` or the interactive toggle, ready for real benchmark/latency comparisons.
+- CLI already accepts repo paths and benchmark flags, so advanced features can land without breaking UX.
 
-## Future roadmap
-1. Plug in actual Claude/OpenAI API calls once billing is configured.
-2. Surface historical routing decisions and acceptance metrics.
-3. Extend estimations with repo stats (files touched, diff size).
-4. Add policy hooks so teams can enforce guardrails per repository.
-5. Offer JSON output for CI pipelines.
+## Roadmap
+1. Wire up actual Claude/OpenAI adapters with token/billing tracking.
+2. Persist past routing decisions and acceptance rates for feedback loops.
+3. Enrich repo scanning with language heuristics, module complexity, and affected files.
+4. Expand policy engine for per-team/per-repo guardrails.
+5. Offer JSON and CI-friendly output modes for pipelines.
