@@ -9,7 +9,7 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
 
-from . import constants
+from . import constants, __version__
 from .config import (
     AppConfig,
     ConfigNotFoundError,
@@ -56,6 +56,21 @@ def _require_config() -> AppConfig:
         console.print(f"[red]{exc}[/red]")
         console.print("Run [bold]saving-llm-budget init[/bold] to create the config file.")
         raise typer.Exit(code=1) from exc
+
+
+@app.callback(invoke_without_command=True)
+def main(ctx: typer.Context, version: bool = typer.Option(False, "--version", help="Show CLI version.")) -> None:
+    if version:
+        console.print(f"saving-llm-budget v{__version__}")
+        raise typer.Exit()
+    if ctx.invoked_subcommand:
+        return
+    console.print("[bold cyan]saving-llm-budget[/bold cyan] — cost-aware AI coding router")
+    console.print("1. Run [bold]saving-llm-budget init[/bold] to create config + first profile (Claude/Codex, API/local).")
+    console.print("2. Use [bold]saving-llm-budget ask[/bold] for interactive routing or [bold]run[/bold]/[bold]estimate[/bold] for scripted flows.")
+    console.print("3. Manage profiles anytime via [bold]saving-llm-budget profile list[/bold]/add/use/remove.")
+    console.print("Need help? Try [bold]saving-llm-budget --help[/bold] or [bold]saving-llm-budget explain[/bold].")
+    raise typer.Exit()
 
 
 def _resolve_profile(config: AppConfig, profile_name: Optional[str]) -> tuple[AppConfig, str, ProviderProfile]:
@@ -267,6 +282,7 @@ def init(force: bool = typer.Option(False, "--force", help="Overwrite existing c
         )
     location = save_config(config)
     console.print(f"Config saved to {location}")
+    console.print("Next steps: run [bold]saving-llm-budget ask[/bold] for a guided session or [bold]saving-llm-budget profile list[/bold] to review connections.")
     console.print(
         Panel(
             "Set [bold]ANTHROPIC_API_KEY[/bold] and [bold]OPENAI_API_KEY[/bold] in your environment."

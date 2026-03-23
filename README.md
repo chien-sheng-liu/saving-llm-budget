@@ -24,6 +24,7 @@
    ```bash
    pip install -e .
    ```
+4. (Optional) Run `saving-llm-budget` with no arguments to see a quick refresher on the next steps at any time.
 
 ## Configure once
 ```
@@ -55,12 +56,13 @@ export OPENAI_API_KEY="sk-openai-..."
 | `saving-llm-budget estimate "Fix import errors" ...` | Complexity/cost/provider/workflow summary |
 | `saving-llm-budget explain` | Present the scoring rules and weights |
 | `saving-llm-budget profile add/list/use/remove` | Manage reusable provider profiles |
+| `saving-llm-budget` | Show the quick-start banner when run with no arguments |
 
 ### Interactive example
 ```
 saving-llm-budget ask
 ```
-Answer prompts about task description, type, scope, clarity, cost priority, long-context needs, automation, optional repo path, and benchmark mode. Output includes provider/workflow, confidence, reasoning, budget status, repo/diff notes, and policy/benchmark hints.
+Answer prompts about task description, type, scope, clarity, cost priority, long-context needs, automation, optional repo path, and benchmark mode. Output includes provider/workflow, confidence, reasoning, budget status, repo/diff notes, and policy/benchmark hints. Use `--profile <name>` if you want to override the currently active connection for a single run.
 
 ### Non-interactive example
 ```
