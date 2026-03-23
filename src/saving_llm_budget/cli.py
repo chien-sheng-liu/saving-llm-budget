@@ -32,6 +32,7 @@ from .models import (
     enum_choices,
 )
 from .router import rules
+from .providers.executor import ProviderExecutor
 from .services.recommender import RoutingService
 from .services.tester import TestRunner
 from .utils import formatters
@@ -42,6 +43,7 @@ app.add_typer(profile_app, name="profile")
 console = Console()
 _service = RoutingService()
 _test_runner = TestRunner(console)
+_executor = ProviderExecutor(console)
 
 DEFAULT_API_KEY_ENVS = {
     Provider.CLAUDE: [constants.ANTHROPIC_API_KEY_VAR],
@@ -82,8 +84,17 @@ def _resolve_profile(
             console.print(f"[red]Profile '{profile_name}' does not exist.[/red]")
             raise typer.Exit(1)
         console.print(
-            "[yellow]No provider profiles configured yet. Add one via"
-            " [bold]saving-llm-budget profile add[/bold], or continue without one.[/yellow]"
+            "[yellow]No provider profiles configured yet. You can continue without one[/yellow]"
+            " or create it now."
+        )
+        if typer.confirm("Create a profile now?", default=True):
+            name, new_profile = _profile_wizard()
+            config = upsert_profile(config, name, new_profile, set_active=True)
+            save_config(config)
+            return config, name, new_profile
+        console.print(
+            "Continuing without a provider profile. (Add one later via"
+            " [bold]saving-llm-budget profile add[/bold].)"
         )
         return config, None, None
 
@@ -190,6 +201,18 @@ def _build_task_request(
 def _print_decision(decision) -> None:
     console.print(formatters.decision_panel(decision))
     console.print(formatters.scores_table(decision.scores))
+
+
+def _maybe_execute(task: TaskRequest, profile: Optional[ProviderProfile], prompt: bool = True) -> None:
+    if profile is None:
+        return
+    if prompt:
+        confirm = typer.confirm(
+            f"Execute task via {profile.provider.value} ({profile.mode.value}) now?", default=True
+        )
+        if not confirm:
+            return
+    _executor.execute(task, profile)
 
 
 @profile_app.command("add", help="Create a new provider profile")
@@ -340,6 +363,7 @@ def ask(
     decision = _service.recommend(task, config, profile_mode=profile_mode)
     decision = decision.model_copy(update={"profile_name": active_profile_name, "profile_mode": profile_mode})
     _print_decision(decision)
+    _maybe_execute(task, active_profile)
 
 
 @app.command(help="Non-interactive routing for scripts or quick checks.")
@@ -375,6 +399,7 @@ def run(
     decision = _service.recommend(task, config, profile_mode=profile_mode)
     decision = decision.model_copy(update={"profile_name": active_profile_name, "profile_mode": profile_mode})
     _print_decision(decision)
+    _maybe_execute(task, active_profile)
 
 
 @app.command(help="Explain the scoring rules that power routing decisions.")
@@ -431,6 +456,7 @@ def estimate(
     table.add_row("Workflow", decision.workflow.value)
     table.add_row("Confidence", f"{decision.confidence:.2f}")
     console.print(table)
+    _maybe_execute(task, active_profile, prompt=False)
 
 
 @app.command(help="Run the local pytest suite with a friendly interface.")
@@ -466,6 +492,27 @@ def test(
         console.print(result.stderr.rstrip())
     if not result.success:
         raise typer.Exit(result.return_code)
+
+
+@app.command(name="console", help="Stay in a lightweight CLI loop so you can run multiple commands.")
+def console_loop() -> None:
+    import shlex
+    import subprocess
+    import sys
+
+    console.print("Enter commands exactly as you would pass to saving-llm-budget. Type 'exit' to quit.")
+    while True:
+        raw = typer.prompt("slb> ").strip()
+        if not raw:
+            continue
+        if raw.lower() in {"exit", "quit"}:
+            console.print("Bye!")
+            break
+        args = shlex.split(raw)
+        try:
+            subprocess.run([sys.executable, "-m", "saving_llm_budget", *args], check=False)
+        except FileNotFoundError:
+            console.print("Could not launch nested command. Ensure Python is available.")
 
 
 __all__ = ["app"]

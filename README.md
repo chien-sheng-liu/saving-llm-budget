@@ -30,7 +30,7 @@
 ```
 saving-llm-budget init
 ```
-The first run records defaults in `~/.saving-llm-budget/config.yaml` *and* walks through a short profile wizard so you can pick Claude vs. Codex and choose API keys or local CLI access. Profiles are optional—you can skip the wizard and add them later with `saving-llm-budget profile add`.
+The first run records defaults in `~/.saving-llm-budget/config.yaml` *and* walks through a short profile wizard so you can pick Claude vs. Codex and choose API keys or local CLI access. Profiles are optional—you can skip the wizard, answer `No` when prompted, and add them later with `saving-llm-budget profile add` (or the CLI will offer to create one the first time you run `ask`/`run`).
 Set API keys via environment variables (no validation yet):
 ```bash
 export ANTHROPIC_API_KEY="sk-ant-..."
@@ -47,13 +47,14 @@ export OPENAI_API_KEY="sk-openai-..."
 | `saving-llm-budget explain` | Present the scoring rules and weights |
 | `saving-llm-budget profile add/list/use/remove` | Manage reusable provider profiles |
 | `saving-llm-budget test [path]` | Run pytest locally with a Rich summary |
+| `saving-llm-budget console` | Stay inside a mini shell to run multiple subcommands |
 | `saving-llm-budget` | Show the quick-start banner when run with no arguments |
 
 ### Interactive example
 ```
 saving-llm-budget ask
 ```
-Answer prompts about task description, type, scope, clarity, cost priority, long-context needs, automation, optional repo path, and benchmark mode. Output includes provider/workflow, confidence, reasoning, budget status, repo/diff notes, and policy/benchmark hints. If no profile is configured yet, the router still works—add one later via `saving-llm-budget profile add` or override with `--profile <name>` per run.
+Answer prompts about task description, type, scope, clarity, cost priority, long-context needs, automation, optional repo path, and benchmark mode. Output includes provider/workflow, confidence, reasoning, budget status, repo/diff notes, and policy/benchmark hints. If no profile is configured yet, the router asks whether you want to create one on the spot (or you can skip and continue). When a profile exists, you can override it per run with `--profile <name>`, and the CLI offers to execute the task through that provider (API placeholder or local CLI command).
 
 ### Non-interactive example
 ```
@@ -87,6 +88,12 @@ saving-llm-budget test --last-failed
 ```
 
 Stdout/stderr from pytest are displayed inline and the exit code mirrors pytest, so the command works in scripts or CI as well.
+
+## Provider execution hooks
+- When a profile is selected, `ask`/`run`/`estimate` will offer to execute the task via that provider immediately.
+- **API mode**: For now the CLI prints a detailed placeholder (required env vars + task context) so you can copy/paste into your workflow. Future releases can plug in actual API calls.
+- **CLI mode**: The stored command (e.g., `claude` or `codex`) is launched with task metadata piped through STDIN, so your local tools can consume it however they want.
+- Skip the execution prompt anytime by answering “n”, or run `saving-llm-budget profile add` later to change how tasks are executed.
 
 ## Routing highlights
 - **Claude** gains weight on architecture, large refactors, ambiguity, repo-wide scopes, quality-first priorities, and long context needs.
