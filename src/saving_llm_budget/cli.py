@@ -73,14 +73,19 @@ def main(ctx: typer.Context, version: bool = typer.Option(False, "--version", he
     raise typer.Exit()
 
 
-def _resolve_profile(config: AppConfig, profile_name: Optional[str]) -> tuple[AppConfig, str, ProviderProfile]:
+def _resolve_profile(
+    config: AppConfig, profile_name: Optional[str]
+) -> tuple[AppConfig, Optional[str], Optional[ProviderProfile]]:
     profiles = config.list_profiles()
     if not profiles:
-        console.print("[red]No provider profiles configured.[/red]")
+        if profile_name:
+            console.print(f"[red]Profile '{profile_name}' does not exist.[/red]")
+            raise typer.Exit(1)
         console.print(
-            "Add one via [bold]saving-llm-budget profile add[/bold] or re-run init to create a quick profile."
+            "[yellow]No provider profiles configured yet. Add one via"
+            " [bold]saving-llm-budget profile add[/bold], or continue without one.[/yellow]"
         )
-        raise typer.Exit(1)
+        return config, None, None
 
     if profile_name:
         if profile_name not in profiles:
@@ -88,22 +93,18 @@ def _resolve_profile(config: AppConfig, profile_name: Optional[str]) -> tuple[Ap
             raise typer.Exit(1)
         target = profile_name
     else:
-        target = config.active_profile
-        if not target or target not in profiles:
-            target = next(iter(profiles))
-            if config.active_profile != target:
-                config = config.model_copy(update={"active_profile": target})
-                save_config(config)
-
-    if config.active_profile != target:
-        config = config.model_copy(update={"active_profile": target})
-        save_config(config)
+        target = config.active_profile or next(iter(profiles))
+        if config.active_profile != target:
+            config = config.model_copy(update={"active_profile": target})
+            save_config(config)
 
     profile = config.get_profile(target)
     return config, target, profile
 
 
-def _profile_summary(profile_name: str, profile: ProviderProfile) -> str:
+def _profile_summary(profile_name: Optional[str], profile: Optional[ProviderProfile]) -> str:
+    if not profile or not profile_name:
+        return "(no provider profile)"
     provider_value = profile.provider.value if hasattr(profile.provider, "value") else str(profile.provider)
     mode_value = profile.mode.value if hasattr(profile.mode, "value") else str(profile.mode)
     mode_label = "API key" if mode_value == ProfileMode.API.value else "local app"
@@ -335,10 +336,9 @@ def ask(
         benchmark_mode=benchmark_mode,
         profile_name=active_profile_name,
     )
-    decision = _service.recommend(task, config, profile_mode=active_profile.mode)
-    decision = decision.model_copy(
-        update={"profile_name": active_profile_name, "profile_mode": active_profile.mode}
-    )
+    profile_mode = active_profile.mode if active_profile else None
+    decision = _service.recommend(task, config, profile_mode=profile_mode)
+    decision = decision.model_copy(update={"profile_name": active_profile_name, "profile_mode": profile_mode})
     _print_decision(decision)
 
 
@@ -371,10 +371,9 @@ def run(
         benchmark_mode=benchmark_mode,
         profile_name=active_profile_name,
     )
-    decision = _service.recommend(task, config, profile_mode=active_profile.mode)
-    decision = decision.model_copy(
-        update={"profile_name": active_profile_name, "profile_mode": active_profile.mode}
-    )
+    profile_mode = active_profile.mode if active_profile else None
+    decision = _service.recommend(task, config, profile_mode=profile_mode)
+    decision = decision.model_copy(update={"profile_name": active_profile_name, "profile_mode": profile_mode})
     _print_decision(decision)
 
 
@@ -418,10 +417,9 @@ def estimate(
         benchmark_mode=benchmark_mode,
         profile_name=active_profile_name,
     )
-    decision = _service.recommend(task, config, profile_mode=active_profile.mode)
-    decision = decision.model_copy(
-        update={"profile_name": active_profile_name, "profile_mode": active_profile.mode}
-    )
+    profile_mode = active_profile.mode if active_profile else None
+    decision = _service.recommend(task, config, profile_mode=profile_mode)
+    decision = decision.model_copy(update={"profile_name": active_profile_name, "profile_mode": profile_mode})
 
     table = Table(title="Estimate")
     table.add_column("Field")

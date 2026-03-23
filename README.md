@@ -30,7 +30,7 @@
 ```
 saving-llm-budget init
 ```
-The first run records defaults in `~/.saving-llm-budget/config.yaml` *and* walks through a short profile wizard so you can pick Claude vs. Codex and choose API keys or local CLI access.
+The first run records defaults in `~/.saving-llm-budget/config.yaml` *and* walks through a short profile wizard so you can pick Claude vs. Codex and choose API keys or local CLI access. Profiles are optional—you can skip the wizard and add them later with `saving-llm-budget profile add`.
 Set API keys via environment variables (no validation yet):
 ```bash
 export ANTHROPIC_API_KEY="sk-ant-..."
@@ -40,7 +40,7 @@ export OPENAI_API_KEY="sk-openai-..."
 ## Commands
 | Command | Purpose |
 | --- | --- |
-| `saving-llm-budget init` | Capture defaults, budgets, and at least one provider profile |
+| `saving-llm-budget init` | Capture defaults, budgets, and optionally create a provider profile |
 | `saving-llm-budget ask` | Interactive Q&A that ends with a routing panel |
 | `saving-llm-budget run "Refactor auth middleware" ...` | Non-interactive CLI with flags |
 | `saving-llm-budget estimate "Fix import errors" ...` | Complexity/cost/provider/workflow summary |
@@ -53,7 +53,7 @@ export OPENAI_API_KEY="sk-openai-..."
 ```
 saving-llm-budget ask
 ```
-Answer prompts about task description, type, scope, clarity, cost priority, long-context needs, automation, optional repo path, and benchmark mode. Output includes provider/workflow, confidence, reasoning, budget status, repo/diff notes, and policy/benchmark hints. Use `--profile <name>` if you want to override the currently active connection for a single run.
+Answer prompts about task description, type, scope, clarity, cost priority, long-context needs, automation, optional repo path, and benchmark mode. Output includes provider/workflow, confidence, reasoning, budget status, repo/diff notes, and policy/benchmark hints. If no profile is configured yet, the router still works—add one later via `saving-llm-budget profile add` or override with `--profile <name>` per run.
 
 ### Non-interactive example
 ```
