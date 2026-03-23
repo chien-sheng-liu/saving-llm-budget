@@ -110,7 +110,12 @@ def _profile_summary(profile_name: str, profile: ProviderProfile) -> str:
 
 def _profile_wizard(preset_name: Optional[str] = None) -> tuple[str, ProviderProfile]:
     console.print("[bold]Profile setup[/bold]: choose which provider to connect and how.")
-    provider = _prompt_enum("Provider", Provider, Provider.CLAUDE)
+    provider = _prompt_enum(
+        "Provider",
+        Provider,
+        Provider.CLAUDE,
+        allowed=[Provider.CLAUDE, Provider.CODEX],
+    )
     mode = _prompt_enum("Connection mode (api/local_app)", ProfileMode, ProfileMode.API)
     default_name = preset_name or f"{provider.value.lower()}-{mode.value}"
     name = typer.prompt("Profile name", default=default_name).strip()
@@ -129,15 +134,21 @@ def _profile_wizard(preset_name: Optional[str] = None) -> tuple[str, ProviderPro
     return name, profile
 
 
-def _prompt_enum(label: str, enum_cls, default) -> any:
-    options = ", ".join(enum_choices(enum_cls))
+def _normalize_choice(value: str) -> str:
+    return value.strip().lower().replace(" ", "_").replace("-", "_")
+
+
+def _prompt_enum(label: str, enum_cls, default, allowed: Optional[list] = None) -> any:
+    members = allowed or list(enum_cls)
+    option_strings = ", ".join(member.value for member in members)
+    default_value = default.value if hasattr(default, "value") else str(default)
     while True:
-        value = typer.prompt(f"{label} ({options})", default=default.value)
-        normalized = value.strip().lower().replace(" ", "_").replace("-", "_")
-        try:
-            return enum_cls(normalized)
-        except ValueError:
-            console.print(f"[red]Invalid choice '{value}'. Try again.[/red]")
+        value = typer.prompt(f"{label} ({option_strings})", default=default_value)
+        normalized = _normalize_choice(value)
+        for member in members:
+            if normalized in {_normalize_choice(member.value), _normalize_choice(member.name)}:
+                return member
+        console.print(f"[red]Invalid choice '{value}'. Try again.[/red]")
 
 
 def _default_priority(config: AppConfig) -> Priority:
