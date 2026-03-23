@@ -21,3 +21,8 @@ MODE_TO_PRIORITY = {
     "balanced": "balanced",
     "quality": "best_quality",
 }
+
+# LLM classifier settings (uses cheap Haiku for fast task analysis)
+CLASSIFIER_MODEL = "claude-3-5-haiku-20241022"
+CLASSIFIER_MAX_TOKENS = 512
+CLASSIFIER_TEMPERATURE = 0.0

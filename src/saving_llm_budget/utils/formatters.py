@@ -2,13 +2,17 @@
 
 from __future__ import annotations
 
-from typing import Iterable
+from typing import TYPE_CHECKING, Iterable, Optional
 
 from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
 
+from .. import __version__
 from ..models import ProviderScore, RoutingDecision
+
+if TYPE_CHECKING:
+    from ..services.classifier import ClassificationResult
 
 
 def decision_panel(decision: RoutingDecision) -> Panel:
@@ -85,3 +89,61 @@ def rules_table(title: str, rows: Iterable[tuple[str, float]]) -> Table:
 
 def highlight(text: str) -> Text:
     return Text(text, style="bold cyan")
+
+
+def welcome_banner(
+    profile_name: Optional[str] = None,
+    profile_summary: Optional[str] = None,
+    mode: Optional[str] = None,
+    max_budget: Optional[float] = None,
+) -> Panel:
+    """Welcome banner shown when entering the REPL."""
+    table = Table.grid(padding=(0, 1))
+    table.add_row("[bold cyan]saving-llm-budget[/bold cyan]", f"[dim]v{__version__}[/dim]")
+    table.add_row("[bold]Mode[/bold]", mode or "balanced")
+    if max_budget is not None:
+        table.add_row("[bold]Budget Cap[/bold]", f"${max_budget:.2f} USD")
+    if profile_name:
+        table.add_row("[bold]Active Profile[/bold]", profile_summary or profile_name)
+    else:
+        table.add_row("[bold]Active Profile[/bold]", "[yellow]none — run 'profile add' to configure[/yellow]")
+    table.add_row("")
+    table.add_row("[dim]Type your task in plain English to get started.[/dim]", "")
+    table.add_row("[dim]Special commands: /help  /profile  /history  /override  /exit[/dim]", "")
+    return Panel(table, title="[bold]Welcome[/bold]", border_style="cyan", expand=False)
+
+
+def classification_panel(result: "ClassificationResult") -> Panel:
+    """Panel showing what the LLM classified about the task."""
+    icon = "[green]AI[/green]" if result.used_llm else "[yellow]heuristic[/yellow]"
+    table = Table.grid(padding=(0, 1))
+    table.add_row("[bold]Classified by[/bold]", icon)
+    table.add_row("[bold]Task type[/bold]", result.task_type.value)
+    table.add_row("[bold]Scope[/bold]", result.scope.value)
+    table.add_row("[bold]Clarity[/bold]", result.clarity.value)
+    table.add_row("[bold]Priority[/bold]", result.priority.value)
+    table.add_row("[bold]Long context[/bold]", str(result.long_context))
+    table.add_row("[bold]Auto modify[/bold]", str(result.auto_modify))
+    table.add_row("[bold]Reasoning[/bold]", result.reasoning)
+    return Panel(table, title="Task Classification", border_style="blue", expand=False)
+
+
+def history_table(history: list[dict]) -> Table:
+    """Table showing REPL session history."""
+    table = Table(title="Session History", show_lines=True)
+    table.add_column("#", justify="right", style="dim", width=3)
+    table.add_column("Task", max_width=50)
+    table.add_column("Provider", justify="center")
+    table.add_column("Confidence", justify="center")
+    table.add_column("Status", justify="center")
+    for i, entry in enumerate(history, start=1):
+        status_color = "green" if entry.get("executed") else "yellow"
+        status_text = "executed" if entry.get("executed") else "skipped"
+        table.add_row(
+            str(i),
+            entry.get("description", "")[:50],
+            entry.get("provider", "?"),
+            f"{entry.get('confidence', 0):.2f}",
+            f"[{status_color}]{status_text}[/{status_color}]",
+        )
+    return table

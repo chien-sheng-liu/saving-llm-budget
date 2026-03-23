@@ -32,20 +32,30 @@ def test_executor_api_mode_prints_placeholder(monkeypatch):
 
 
 def test_executor_cli_mode_runs_command(monkeypatch):
+    import io
+    import subprocess
+
     buffer = StringIO()
     console = Console(file=buffer, width=80, force_terminal=False, color_system=None)
     executor = ProviderExecutor(console)
-    profile = ProviderProfile(provider=Provider.CODEX, mode=ProfileMode.LOCAL_APP, cli_command="echo codex")
+    profile = ProviderProfile(provider=Provider.CODEX, mode=ProfileMode.LOCAL_APP, cli_command="echo")
 
     called = {}
 
-    def fake_run(cmd, input, text, check):
-        called["cmd"] = cmd
-        called["input"] = input
-        called["text"] = text
-        called["check"] = check
+    class FakeProcess:
+        stdout = io.StringIO("output line\n")
+        returncode = 0
 
-    monkeypatch.setattr("subprocess.run", fake_run)
+        def wait(self):
+            pass
+
+    def fake_popen(cmd, **kwargs):
+        called["cmd"] = cmd
+        return FakeProcess()
+
+    monkeypatch.setattr("shutil.which", lambda x: f"/usr/bin/{x}")
+    monkeypatch.setattr("subprocess.Popen", fake_popen)
     executor.execute(sample_task(), profile)
-    assert called["cmd"] == ["echo", "codex"]
-    assert "demo" in called["input"]
+    assert called["cmd"][0] == "echo"
+    # For Codex, the prompt is passed as the last argument
+    assert "demo" in called["cmd"][-1]

@@ -526,25 +526,23 @@ def test(
         raise typer.Exit(result.return_code)
 
 
-@app.command(name="console", help="Stay in a lightweight CLI loop so you can run multiple commands.")
-def console_loop() -> None:
-    import shlex
-    import subprocess
-    import sys
+@app.command(name="console", help="Start a persistent AI-powered REPL — type tasks in plain English.")
+def console_loop(
+    profile: Optional[str] = typer.Option(None, "--profile", help="Override the active provider profile."),
+) -> None:
+    from .repl import ReplSession
 
-    console.print("Enter commands exactly as you would pass to saving-llm-budget. Type 'exit' to quit.")
-    while True:
-        raw = typer.prompt("slb> ").strip()
-        if not raw:
-            continue
-        if raw.lower() in {"exit", "quit"}:
-            console.print("Bye!")
-            break
-        args = shlex.split(raw)
-        try:
-            subprocess.run([sys.executable, "-m", "saving_llm_budget", *args], check=False)
-        except FileNotFoundError:
-            console.print("Could not launch nested command. Ensure Python is available.")
+    config = _require_config()
+    config, active_profile_name, active_profile = _resolve_profile(config, profile)
+    session = ReplSession(
+        config=config,
+        profile_name=active_profile_name,
+        profile=active_profile,
+        executor=_executor,
+        service=_service,
+        console=console,
+    )
+    session.run()
 
 
 __all__ = ["app"]
