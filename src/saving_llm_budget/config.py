@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any, Dict, Optional
 
-from pydantic import BaseModel, Field, ValidationError
+from pydantic import BaseModel, Field, ValidationError, ConfigDict
 
 from . import constants
 from .models import ProfileMode, Provider
@@ -35,6 +35,7 @@ class ProvidersConfig(BaseModel):
 
 
 class ProviderProfile(BaseModel):
+    model_config = ConfigDict(use_enum_values=True)
     provider: Provider
     mode: ProfileMode
     api_keys: list[str] = Field(default_factory=list)

@@ -56,6 +56,7 @@ export OPENAI_API_KEY="sk-openai-..."
 | `saving-llm-budget estimate "Fix import errors" ...` | Complexity/cost/provider/workflow summary |
 | `saving-llm-budget explain` | Present the scoring rules and weights |
 | `saving-llm-budget profile add/list/use/remove` | Manage reusable provider profiles |
+| `saving-llm-budget test [path]` | Run pytest locally with a Rich summary |
 | `saving-llm-budget` | Show the quick-start banner when run with no arguments |
 
 ### Interactive example
@@ -85,6 +86,17 @@ saving-llm-budget estimate "Fix import errors in frontend" \
 - `saving-llm-budget profile remove <name>`: delete stale configurations.
 
 Every `ask`, `run`, or `estimate` command automatically uses the active profile, but you can override with `--profile <name>` for that single invocation.
+
+## Local test runner
+`saving-llm-budget test` wraps `python -m pytest` with a Rich summary so you can run suites locally without leaving the CLI. Examples:
+
+```
+saving-llm-budget test          # run the whole suite
+saving-llm-budget test tests/test_router_engine.py -v
+saving-llm-budget test --last-failed
+```
+
+Stdout/stderr from pytest are displayed inline and the exit code mirrors pytest, so the command works in scripts or CI as well.
 
 ## Routing highlights
 - **Claude** gains weight on architecture, large refactors, ambiguity, repo-wide scopes, quality-first priorities, and long context needs.

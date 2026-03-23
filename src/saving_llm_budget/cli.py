@@ -35,6 +35,7 @@ from .models import (
 )
 from .router import rules
 from .services.recommender import RoutingService
+from .services.tester import TestRunner
 from .utils import formatters
 
 app = typer.Typer(add_completion=False, no_args_is_help=True, rich_markup_mode="rich")
@@ -42,6 +43,7 @@ profile_app = typer.Typer(help="Manage provider profiles", add_completion=False)
 app.add_typer(profile_app, name="profile")
 console = Console()
 _service = RoutingService()
+_test_runner = TestRunner(console)
 
 DEFAULT_API_KEY_ENVS = {
     Provider.CLAUDE: [constants.ANTHROPIC_API_KEY_VAR],
@@ -437,6 +439,41 @@ def estimate(
     table.add_row("Workflow", decision.workflow.value)
     table.add_row("Confidence", f"{decision.confidence:.2f}")
     console.print(table)
+
+
+@app.command(help="Run the local pytest suite with a friendly interface.")
+def test(
+    target: Optional[str] = typer.Argument(None, help="Optional test path or expression."),
+    verbose: bool = typer.Option(False, "--verbose", "-v", help="Pass -vv to pytest."),
+    last_failed: bool = typer.Option(False, "--last-failed", help="Re-run only failed tests."),
+) -> None:
+    args: list[str] = []
+    if verbose:
+        args.append("-vv")
+    if last_failed:
+        args.append("--last-failed")
+    if target:
+        args.append(target)
+    console.print("[bold]Executing pytest[/bold]")
+    result = _test_runner.run(args)
+    status = "passed" if result.success else "failed"
+    panel = Panel(
+        f"Command: {' '.join(result.command)}\n"
+        f"Status: {status}\n"
+        f"Duration: {result.duration:.2f}s\n"
+        f"Exit code: {result.return_code}",
+        title="Test Summary",
+        style="green" if result.success else "red",
+    )
+    console.print(panel)
+    if result.stdout:
+        console.rule("stdout")
+        console.print(result.stdout.rstrip())
+    if result.stderr:
+        console.rule("stderr")
+        console.print(result.stderr.rstrip())
+    if not result.success:
+        raise typer.Exit(result.return_code)
 
 
 __all__ = ["app"]
