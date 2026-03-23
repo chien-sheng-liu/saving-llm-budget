@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import os
+import subprocess
 from typing import Optional
 
 import typer
@@ -78,6 +80,7 @@ def main(ctx: typer.Context, version: bool = typer.Option(False, "--version", he
 def _resolve_profile(
     config: AppConfig, profile_name: Optional[str]
 ) -> tuple[AppConfig, Optional[str], Optional[ProviderProfile]]:
+    config = _auto_profiles_from_env(config)
     profiles = config.list_profiles()
     if not profiles:
         if profile_name:
@@ -146,6 +149,33 @@ def _profile_wizard(preset_name: Optional[str] = None) -> tuple[str, ProviderPro
         cli_command = typer.prompt("Command that launches the local CLI", default=default_command).strip()
         profile = ProviderProfile(provider=provider, mode=mode, cli_command=cli_command or None)
     return name, profile
+
+
+def _auto_profiles_from_env(config: AppConfig) -> AppConfig:
+    updated = config
+
+    def ensure(name: str, provider: Provider, env_var: str) -> None:
+        nonlocal updated
+        if not os.getenv(env_var):
+            return
+        if name in updated.profiles:
+            return
+        profile = ProviderProfile(provider=provider, mode=ProfileMode.API, api_keys=[env_var])
+        updated = upsert_profile(updated, name, profile, set_active=False)
+        save_config(updated)
+        console.print(
+            f"Auto-detected {env_var}; created profile '{name}' tied to that environment variable."
+        )
+
+    ensure("claude-auto", Provider.CLAUDE, constants.ANTHROPIC_API_KEY_VAR)
+    ensure("codex-auto", Provider.CODEX, constants.OPENAI_API_KEY_VAR)
+
+    if not updated.active_profile and updated.profiles:
+        first = next(iter(updated.profiles))
+        updated = updated.model_copy(update={"active_profile": first})
+        save_config(updated)
+
+    return updated
 
 
 def _normalize_choice(value: str) -> str:
@@ -321,6 +351,8 @@ def init(force: bool = typer.Option(False, "--force", help="Overwrite existing c
             title="API keys",
         )
     )
+    if typer.confirm("Start the interactive console now?", default=True):
+        console_loop()
 
 
 @app.command(help="Answer prompts so the router can recommend a provider.")

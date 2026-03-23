@@ -30,7 +30,7 @@
 ```
 saving-llm-budget init
 ```
-The first run records defaults in `~/.saving-llm-budget/config.yaml` *and* walks through a short profile wizard so you can pick Claude vs. Codex and choose API keys or local CLI access. Profiles are optional—you can skip the wizard, answer `No` when prompted, and add them later with `saving-llm-budget profile add` (or the CLI will offer to create one the first time you run `ask`/`run`).
+The first run records defaults in `~/.saving-llm-budget/config.yaml` *and* walks through a short profile wizard so you can pick Claude vs. Codex and choose API keys or local CLI access. Profiles are optional—you can skip the wizard, answer `No` when prompted, and add them later with `saving-llm-budget profile add`. If the CLI detects `ANTHROPIC_API_KEY` or `OPENAI_API_KEY` in your environment, it automatically creates `claude-auto` / `codex-auto` profiles so you can start immediately.
 Set API keys via environment variables (no validation yet):
 ```bash
 export ANTHROPIC_API_KEY="sk-ant-..."
