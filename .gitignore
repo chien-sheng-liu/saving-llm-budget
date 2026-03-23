@@ -1,0 +1,36 @@
+# Python build artifacts
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+
+# Packaging / build
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# Virtual environments
+.venv/
+venv/
+ENV/
+
+# Tooling caches
+.pytest_cache/
+.mypy_cache/
+ruff_cache/
+coverage.xml
+htmlcov/
+
+# Editor directories
+.vscode/
+.idea/
+
+# Local env/config files
+.env
+.env.local
+.saving-llm-budget/
+
+# macOS noise
+.DS_Store

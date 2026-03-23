@@ -1,0 +1,36 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "saving-llm-budget"
+version = "0.1.0"
+description = "Cost-aware AI coding router CLI"
+readme = "README.md"
+authors = [{name = "Saving LLM Budget Team"}]
+license = {text = "MIT"}
+requires-python = ">=3.11"
+dependencies = [
+    "typer[all]>=0.9.0",
+    "rich>=13.0.0",
+    "pydantic>=2.5.0",
+    "PyYAML>=6.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.4",
+]
+
+[project.scripts]
+saving-llm-budget = "saving_llm_budget.cli:app"
+
+[tool.setuptools.package-dir]
+"" = "src"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+addopts = "-q"
+testpaths = ["tests"]
