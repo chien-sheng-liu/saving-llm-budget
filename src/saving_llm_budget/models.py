@@ -57,6 +57,11 @@ class Workflow(str, Enum):
     CODEX_THEN_CLAUDE_REVIEW = "codex_then_claude_review"
 
 
+class ProfileMode(str, Enum):
+    API = "api"
+    LOCAL_APP = "local_app"
+
+
 class TaskRequest(BaseModel):
     """Normalized request payload used by the routing engine."""
 
@@ -70,6 +75,7 @@ class TaskRequest(BaseModel):
     allow_hybrid: bool = True
     repo_path: Optional[str] = None
     benchmark_mode: bool = False
+    profile_name: Optional[str] = None
 
 
 class ProviderScore(BaseModel):
@@ -131,6 +137,8 @@ class RoutingDecision(BaseModel):
     budget_status: Optional[BudgetStatus] = None
     policy_decisions: List[PolicyDecision] = Field(default_factory=list)
     benchmark_report: Optional[BenchmarkReport] = None
+    profile_name: Optional[str] = None
+    profile_mode: Optional[ProfileMode] = None
 
 
 def enum_choices(enum_cls: type[Enum]) -> Sequence[str]:

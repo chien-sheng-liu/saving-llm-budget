@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from ..config import AppConfig, load_config
-from ..models import RoutingDecision, TaskRequest
+from ..models import ProfileMode, RoutingDecision, TaskRequest
 from ..router.engine import RoutingEngine
 from .estimator import Estimator
 from .context import ContextCoordinator
@@ -20,7 +20,12 @@ class RoutingService:
         self.estimator = estimator or Estimator()
         self.context_coordinator = context_coordinator or ContextCoordinator()
 
-    def recommend(self, task: TaskRequest, config: AppConfig | None = None) -> RoutingDecision:
+    def recommend(
+        self,
+        task: TaskRequest,
+        config: AppConfig | None = None,
+        profile_mode: ProfileMode | None = None,
+    ) -> RoutingDecision:
         active_config = config or load_config()
         estimation = self.estimator.estimate(task)
         context = self.context_coordinator.build(task, active_config, estimation)
@@ -32,5 +37,7 @@ class RoutingService:
                 "budget_status": context.budget_status,
                 "policy_decisions": context.policy_decisions,
                 "benchmark_report": context.benchmark_report,
+                "profile_name": task.profile_name,
+                "profile_mode": profile_mode,
             }
         )

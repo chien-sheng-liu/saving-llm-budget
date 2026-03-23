@@ -18,6 +18,9 @@ def decision_panel(decision: RoutingDecision) -> Panel:
     table.add_row("[bold]Recommended[/bold]", decision.provider.value)
     table.add_row("[bold]Workflow[/bold]", decision.workflow.value)
     table.add_row("[bold]Confidence[/bold]", f"{decision.confidence:.2f}")
+    if decision.profile_name:
+        mode = decision.profile_mode.value if decision.profile_mode else "unknown"
+        table.add_row("[bold]Profile[/bold]", f"{decision.profile_name} ({mode})")
     table.add_row("[bold]Reasoning[/bold]", decision.reasoning)
     table.add_row("[bold]Suggested Action[/bold]", decision.suggested_action)
     table.add_row("[bold]Cost Note[/bold]", decision.cost_note)

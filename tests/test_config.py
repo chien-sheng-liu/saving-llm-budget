@@ -6,12 +6,16 @@ from saving_llm_budget import constants
 from saving_llm_budget.config import (
     AppConfig,
     ConfigNotFoundError,
+    ProviderProfile,
     ProviderToggle,
     ProvidersConfig,
     load_config,
     sanitize_mode,
     save_config,
+    upsert_profile,
+    remove_profile,
 )
+from saving_llm_budget.models import ProfileMode, Provider
 
 
 def test_save_and_load_round_trip(tmp_path, monkeypatch):
@@ -39,3 +43,21 @@ def test_sanitize_mode_defaults():
     assert sanitize_mode("cheap") == "cheap"
     assert sanitize_mode("BALANCED") == "balanced"
     assert sanitize_mode("unknown") == constants.DEFAULT_MODE
+
+
+def test_profile_upsert_and_remove():
+    config = AppConfig()
+    profile = ProviderProfile(
+        provider=Provider.CLAUDE,
+        mode=ProfileMode.API,
+        api_keys=[constants.ANTHROPIC_API_KEY_VAR],
+    )
+    updated = upsert_profile(config, "claude-api", profile, set_active=True)
+    assert updated.active_profile == "claude-api"
+    stored = updated.get_profile("claude-api")
+    assert stored.mode == ProfileMode.API
+    assert stored.api_keys == [constants.ANTHROPIC_API_KEY_VAR]
+
+    reduced = remove_profile(updated, "claude-api")
+    assert reduced.profiles == {}
+    assert reduced.active_profile is None

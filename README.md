@@ -29,7 +29,7 @@
 ```
 saving-llm-budget init
 ```
-This stores answers in `~/.saving-llm-budget/config.yaml`. Example:
+The first run records defaults in `~/.saving-llm-budget/config.yaml` *and* walks through a short profile wizard so you can pick Claude vs. Codex and choose API keys or local CLI access. Example YAML:
 ```yaml
 default_mode: balanced
 allow_hybrid: true
@@ -54,6 +54,7 @@ export OPENAI_API_KEY="sk-openai-..."
 | `saving-llm-budget run "Refactor auth middleware" ...` | Non-interactive CLI with flags |
 | `saving-llm-budget estimate "Fix import errors" ...` | Complexity/cost/provider/workflow summary |
 | `saving-llm-budget explain` | Present the scoring rules and weights |
+| `saving-llm-budget profile add/list/use/remove` | Manage reusable provider profiles |
 
 ### Interactive example
 ```
@@ -75,6 +76,14 @@ saving-llm-budget estimate "Fix import errors in frontend" \
   --priority cheapest --auto-modify --repo-path ./frontend
 ```
 
+## Profile management
+- `saving-llm-budget profile add`: run the same wizard independently to capture Claude/Codex connections (API or local CLI).
+- `saving-llm-budget profile list`: view stored profiles and which one is active.
+- `saving-llm-budget profile use <name>`: switch the default profile.
+- `saving-llm-budget profile remove <name>`: delete stale configurations.
+
+Every `ask`, `run`, or `estimate` command automatically uses the active profile, but you can override with `--profile <name>` for that single invocation.
+
 ## Routing highlights
 - **Claude** gains weight on architecture, large refactors, ambiguity, repo-wide scopes, quality-first priorities, and long context needs.
 - **Codex** shines on bugfixes, tests/docs, small scopes, crystal-clear tasks, automation-friendly workflows, and cheapest priorities.
@@ -89,6 +98,7 @@ saving-llm-budget estimate "Fix import errors in frontend" \
 - `saving_llm_budget.services.context`: aggregates repo/diff/budget/policy/benchmark signals before routing, keeping the engine simple.
 - `saving_llm_budget.services.benchmark`: activated via `--benchmark` or the interactive toggle, ready for real benchmark/latency comparisons.
 - CLI already accepts repo paths and benchmark flags, so advanced features can land without breaking UX.
+- Profile objects capture whether you connect via API keys or vendor CLIs, so additional connection strategies can plug in without touching routing logic.
 
 ## Roadmap
 1. Wire up actual Claude/OpenAI adapters with token/billing tracking.
