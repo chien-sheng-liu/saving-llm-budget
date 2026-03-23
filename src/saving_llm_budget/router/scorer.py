@@ -67,12 +67,7 @@ class ScoringEngine:
         elif estimation.complexity == ComplexityLevel.HIGH:
             accumulators[Provider.CLAUDE].add(0.5, "High overall complexity favors Claude")
 
-        # Enforce provider availability via config.
-        if not config.providers.claude.enabled:
-            accumulators[Provider.CLAUDE].add(-6.0, "Claude disabled in config")
-        if not config.providers.codex.enabled:
-            accumulators[Provider.CODEX].add(-6.0, "Codex disabled in config")
-        if not config.allow_hybrid or not (config.providers.claude.enabled and config.providers.codex.enabled) or not task.allow_hybrid:
+        if not config.allow_hybrid or not task.allow_hybrid:
             accumulators[Provider.HYBRID].add(-5.0, "Hybrid workflow disabled")
 
         return accumulators

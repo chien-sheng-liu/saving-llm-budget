@@ -14,8 +14,6 @@ from .config import (
     AppConfig,
     ConfigNotFoundError,
     ProviderProfile,
-    ProviderToggle,
-    ProvidersConfig,
     config_exists,
     load_config,
     sanitize_mode,
@@ -106,8 +104,10 @@ def _resolve_profile(config: AppConfig, profile_name: Optional[str]) -> tuple[Ap
 
 
 def _profile_summary(profile_name: str, profile: ProviderProfile) -> str:
-    mode = "API key" if profile.mode == ProfileMode.API else "local app"
-    return f"{profile_name} → {profile.provider.value} via {mode}"
+    provider_value = profile.provider.value if hasattr(profile.provider, "value") else str(profile.provider)
+    mode_value = profile.mode.value if hasattr(profile.mode, "value") else str(profile.mode)
+    mode_label = "API key" if mode_value == ProfileMode.API.value else "local app"
+    return f"{profile_name} → {provider_value} via {mode_label}"
 
 
 def _profile_wizard(preset_name: Optional[str] = None) -> tuple[str, ProviderProfile]:
@@ -273,17 +273,11 @@ def init(force: bool = typer.Option(False, "--force", help="Overwrite existing c
     except ValueError:
         console.print("[red]Invalid number. Using fallback 50.0[/red]")
         max_budget_value = 50.0
-    claude_enabled = typer.confirm("Enable Claude?", default=True)
-    codex_enabled = typer.confirm("Enable Codex?", default=True)
 
     config = AppConfig(
         default_mode=mode,
         allow_hybrid=allow_hybrid,
         max_budget_usd=max_budget_value,
-        providers=ProvidersConfig(
-            claude=ProviderToggle(enabled=claude_enabled),
-            codex=ProviderToggle(enabled=codex_enabled),
-        ),
     )
     if typer.confirm("Create a provider profile now?", default=True):
         profile_name, profile = _profile_wizard()

@@ -7,8 +7,6 @@ from saving_llm_budget.config import (
     AppConfig,
     ConfigNotFoundError,
     ProviderProfile,
-    ProviderToggle,
-    ProvidersConfig,
     load_config,
     sanitize_mode,
     save_config,
@@ -24,10 +22,6 @@ def test_save_and_load_round_trip(tmp_path, monkeypatch):
         default_mode="quality",
         allow_hybrid=False,
         max_budget_usd=10.0,
-        providers=ProvidersConfig(
-            claude=ProviderToggle(enabled=False),
-            codex=ProviderToggle(enabled=True),
-        ),
     )
     path = save_config(config)
     loaded = load_config(path)

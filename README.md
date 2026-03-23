@@ -30,17 +30,7 @@
 ```
 saving-llm-budget init
 ```
-The first run records defaults in `~/.saving-llm-budget/config.yaml` *and* walks through a short profile wizard so you can pick Claude vs. Codex and choose API keys or local CLI access. Example YAML:
-```yaml
-default_mode: balanced
-allow_hybrid: true
-max_budget_usd: 40.0
-providers:
-  claude:
-    enabled: true
-  codex:
-    enabled: true
-```
+The first run records defaults in `~/.saving-llm-budget/config.yaml` *and* walks through a short profile wizard so you can pick Claude vs. Codex and choose API keys or local CLI access.
 Set API keys via environment variables (no validation yet):
 ```bash
 export ANTHROPIC_API_KEY="sk-ant-..."
@@ -50,7 +40,7 @@ export OPENAI_API_KEY="sk-openai-..."
 ## Commands
 | Command | Purpose |
 | --- | --- |
-| `saving-llm-budget init` | Capture defaults, budgets, and provider toggles |
+| `saving-llm-budget init` | Capture defaults, budgets, and at least one provider profile |
 | `saving-llm-budget ask` | Interactive Q&A that ends with a routing panel |
 | `saving-llm-budget run "Refactor auth middleware" ...` | Non-interactive CLI with flags |
 | `saving-llm-budget estimate "Fix import errors" ...` | Complexity/cost/provider/workflow summary |
@@ -101,7 +91,7 @@ Stdout/stderr from pytest are displayed inline and the exit code mirrors pytest,
 ## Routing highlights
 - **Claude** gains weight on architecture, large refactors, ambiguity, repo-wide scopes, quality-first priorities, and long context needs.
 - **Codex** shines on bugfixes, tests/docs, small scopes, crystal-clear tasks, automation-friendly workflows, and cheapest priorities.
-- **Hybrid** activates when both providers are enabled, tasks are feature/refactor-class, scope is module/repo, and planning before execution makes sense.
+- **Hybrid** activates when hybrid mode is allowed, profiles support both providers, tasks are feature/refactor-class, scope is module/repo, and planning before execution makes sense.
 - Scores start from baselines, apply rule weights, incorporate estimator signals (complexity, token pressure, cost level), and respect config toggles. The spread becomes a confidence metric.
 - Available workflows: `direct_claude`, `direct_codex`, `plan_with_claude_then_execute_with_codex`, `codex_then_claude_review`.
 

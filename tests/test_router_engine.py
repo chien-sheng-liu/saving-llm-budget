@@ -1,4 +1,4 @@
-from saving_llm_budget.config import AppConfig, ProviderToggle, ProvidersConfig
+from saving_llm_budget.config import AppConfig
 from saving_llm_budget.models import Clarity, Priority, Provider, Scope, TaskRequest, TaskType
 from saving_llm_budget.router.engine import RoutingEngine
 from saving_llm_budget.services.estimator import Estimator
@@ -9,10 +9,6 @@ def build_config(**overrides):
         default_mode="balanced",
         allow_hybrid=True,
         max_budget_usd=100.0,
-        providers=ProvidersConfig(
-            claude=ProviderToggle(enabled=True),
-            codex=ProviderToggle(enabled=True),
-        ),
     )
     defaults.update(overrides)
     return AppConfig(**defaults)

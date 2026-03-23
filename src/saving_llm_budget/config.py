@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any, Dict, Optional
 
-from pydantic import BaseModel, Field, ValidationError, ConfigDict
+from pydantic import BaseModel, Field, ValidationError
 
 from . import constants
 from .models import ProfileMode, Provider
@@ -25,17 +25,7 @@ class ConfigNotFoundError(ConfigError):
         self.path = path
 
 
-class ProviderToggle(BaseModel):
-    enabled: bool = True
-
-
-class ProvidersConfig(BaseModel):
-    claude: ProviderToggle = Field(default_factory=ProviderToggle)
-    codex: ProviderToggle = Field(default_factory=ProviderToggle)
-
-
 class ProviderProfile(BaseModel):
-    model_config = ConfigDict(use_enum_values=True)
     provider: Provider
     mode: ProfileMode
     api_keys: list[str] = Field(default_factory=list)
@@ -46,14 +36,8 @@ class AppConfig(BaseModel):
     default_mode: str = Field(default=constants.DEFAULT_MODE)
     allow_hybrid: bool = Field(default=constants.DEFAULT_ALLOW_HYBRID)
     max_budget_usd: float = Field(default=constants.DEFAULT_MAX_BUDGET_USD, ge=0)
-    providers: ProvidersConfig = Field(default_factory=ProvidersConfig)
     profiles: Dict[str, ProviderProfile] = Field(default_factory=dict)
     active_profile: Optional[str] = None
-
-    def provider_enabled(self, name: str) -> bool:
-        data = self.providers.model_dump()
-        provider = data.get(name, {})
-        return bool(provider.get("enabled", False))
 
     def get_profile(self, name: str) -> ProviderProfile:
         if name not in self.profiles:
@@ -93,7 +77,7 @@ def load_config(path: Path | None = None) -> AppConfig:
 def save_config(config: AppConfig, path: Path | None = None) -> Path:
     location = path or config_path()
     paths.ensure_config_directory(location.parent)
-    io.write_yaml(location, config.model_dump())
+    io.write_yaml(location, config.model_dump(mode="json"))
     return location
 
 
