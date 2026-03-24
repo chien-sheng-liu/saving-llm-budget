@@ -2,12 +2,25 @@
 
 `slb` routes your coding tasks to the right AI tool automatically — Claude Code or Codex — based on what the task actually needs. An LLM judges each prompt and picks the most capable and cost-effective option, then hands off to the tool directly.
 
+`slb` stays open like an interactive shell. Every command returns to the `slb>` prompt — you never leave the CLI.
+
 ```
-slb do "Refactor the auth module to use JWT"
-  → LLM routing...
+$ slb
+slb> Refactor the auth module to use JWT
+
   ⚡ Claude Code  93% conf
      Architecture-level refactor across multiple files — Claude handles this better.
   → Launching Claude Code...
+
+╭─ Back from Claude Code ────────────────────────╮
+│ ✓ Done  ·  session time: 3m 42s                │
+│ Note: token usage billed to your Anthropic     │
+│ account.                                       │
+╰────────────────────────────────────────────────╯
+
+  Session routing cost: 1 call · $0.00027
+
+slb> _
 ```
 
 ---
@@ -64,8 +77,8 @@ Configure Claude now? [Y/n]: Y
     1  API Key  (set an environment variable)
     2  Local CLI  (use the installed claude command)
   Choose (1/2) [1]: 1
-  Environment variable for the API key [ANTHROPIC_API_KEY]:
-  Profile name [claude-api]:
+  Enter the API key directly? [y/N]: y
+  API key: ****
   ✓ Profile 'claude-api' saved (active).
 
 Configure Codex now? [Y/n]: Y
@@ -75,11 +88,17 @@ Configure Codex now? [Y/n]: Y
     2  Local CLI  (use the installed codex command)
   Choose (1/2) [1]: 2
   Command that launches the local CLI [codex]:
-  Profile name [codex-local]:
   ✓ Profile 'codex-local' saved.
 ```
 
-**If you chose API Key mode**, add the variables to your shell config so they persist:
+**API Key mode — two ways to provide the key:**
+
+| Option | How | Where it's stored |
+|--------|-----|-------------------|
+| Enter directly | Paste when prompted | `~/.saving-llm-budget/config.yaml` (permissions: 600) |
+| Environment variable | Point to an env var name | Your shell (`~/.zshrc` or `~/.bashrc`) |
+
+If you choose environment variable, add the keys to your shell config:
 
 ```bash
 # ~/.zshrc or ~/.bashrc
@@ -90,7 +109,7 @@ export OPENAI_API_KEY="sk-proj-..."     # Codex  (API Key mode)
 Then reload: `source ~/.zshrc`
 
 > `slb` reads directly from your shell environment — it does **not** load `.env` files.
-> Only set the keys for providers you configured in API Key mode; Local CLI mode requires no keys.
+> Local CLI mode requires no API keys.
 
 You can update auth settings at any time:
 
@@ -100,24 +119,31 @@ slb profile list     # show all profiles
 slb profile switch   # change the active profile
 ```
 
+**First run shortcut:** just type `slb` — if no config exists, setup runs automatically before dropping into the interactive prompt.
+
 ---
 
 ## Usage
 
-### `slb do` — the main command
+`slb` is a persistent CLI. Type `slb` once and stay in the session:
+
+```
+slb> your task in plain English
+slb> /help
+slb> exit
+```
+
+Or run individual commands from your shell — each returns to `slb>` when done:
 
 ```bash
-slb do "your task in plain English"
+slb do "your task"
+slb chat
+slb explain
 ```
 
-First run asks how you want routing to work — choose once, never asked again:
+### Routing tasks
 
-```
-  auto  — LLM decides and dispatches immediately  (recommended)
-  ask   — LLM recommends, you confirm before dispatch
-```
-
-**Examples:**
+Type a task directly at the `slb>` prompt, or use `slb do`:
 
 ```bash
 slb do "Fix the null pointer in UserService.java line 42"
@@ -136,13 +162,16 @@ slb do "Refactor the payments module" --repo ./backend
 # → Claude Code, running inside ./backend
 ```
 
+First run asks how you want routing to work — choose once, never asked again:
+
+```
+  auto  — LLM decides and dispatches immediately  (recommended)
+  ask   — LLM recommends, you confirm before dispatch
+```
+
 ### `slb chat` — API-based chat (no local CLI needed)
 
 Streams responses directly from Claude or OpenAI. Good for questions, explanations, and quick tasks — no file changes.
-
-```bash
-slb chat
-```
 
 Every message auto-routes to the right model (Haiku / Sonnet / Opus / GPT-4o-mini / GPT-4o) and shows cost per turn.
 
@@ -151,17 +180,19 @@ Every message auto-routes to the right model (Haiku / Sonnet / Opus / GPT-4o-min
 | Command | What it does |
 |---------|-------------|
 | `slb setup` | Install Claude Code and Codex CLI |
+| `slb init` | Configure providers and auth |
 | `slb do "..."` | Route + dispatch to Claude Code or Codex |
 | `slb chat` | Streaming API chat with auto model selection |
 | `slb explain` | Show the routing rules |
 | `slb estimate "..."` | Estimate complexity and cost without running |
+| `exit` / `Ctrl+C` | Leave the REPL |
 | `--help` | Help for any command |
 
 ---
 
 ## How routing works
 
-Every `slb do` call makes a small LLM request (Claude Haiku, ~$0.0003) to judge the task:
+Every task makes a small LLM request (Claude Haiku, ~$0.0003) to judge the task:
 
 ```
 Task → Claude Haiku → { tool: "claude"|"codex", reasoning, confidence }
@@ -177,13 +208,21 @@ If a tool isn't installed, `slb` offers to install it. If neither is available, 
 
 ## Cost tracking
 
-```
-  Routing: 312 in / 28 out  ·  $0.00027
-  Session routing cost: 3 calls  ·  $0.00081
+After each Claude Code or Codex session, `slb` shows:
 
-  Note: tokens used by Claude Code / Codex CLI are billed directly
-  to your Anthropic / OpenAI account.
 ```
+╭─ Back from Claude Code ──────────────────╮
+│ ✓ Done  ·  session time: 3m 42s          │
+│ Note: token usage billed to your         │
+│ Anthropic / OpenAI account.              │
+╰──────────────────────────────────────────╯
+
+  Session routing cost: 1 call · $0.00027
+```
+
+- **Session time** — how long the tool ran
+- **Routing cost** — the Haiku classification call (`slb` side)
+- **Tool token usage** — billed directly to your Anthropic / OpenAI account (not tracked by `slb`)
 
 `slb chat` tracks every turn (tokens in/out + cost per message + session total).
 
