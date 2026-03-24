@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import shlex
 import subprocess
+import time
 from textwrap import dedent
 
 from rich.console import Console
@@ -213,12 +214,28 @@ class ProviderExecutor:
             # Do NOT use stdout=PIPE — that strips the TTY and breaks interactive
             # tools (colours, approval prompts, cursor movement all fail).
             # subprocess.run() with no redirection inherits stdin/stdout/stderr.
+            started_at = time.monotonic()
             result = subprocess.run(command)
+            elapsed = time.monotonic() - started_at
+
             self.console.print(Rule(style="dim"))
-            if result.returncode != 0:
-                self.console.print(
-                    f"[yellow]  Exited with code {result.returncode}.[/yellow]"
+            minutes, seconds = divmod(int(elapsed), 60)
+            elapsed_str = f"{minutes}m {seconds}s" if minutes else f"{seconds}s"
+            status = (
+                "[green]✓ Done[/green]"
+                if result.returncode == 0
+                else f"[yellow]Exited with code {result.returncode}[/yellow]"
+            )
+            self.console.print(
+                Panel(
+                    f"{status}  ·  [dim]session time: {elapsed_str}[/dim]\n"
+                    f"[dim]Note: {profile.provider.value} token usage is billed directly "
+                    "to your Anthropic / OpenAI account.[/dim]",
+                    title=f"Back from {profile.provider.value}",
+                    border_style="dim",
+                    padding=(0, 2),
                 )
+            )
             return result.returncode
 
         except KeyboardInterrupt:

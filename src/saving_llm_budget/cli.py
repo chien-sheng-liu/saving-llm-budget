@@ -832,7 +832,8 @@ def do_cmd(
 
     exit_code = _executor.execute(tr, profile)
     _print_session_cost(console, session_cost)
-    raise typer.Exit(exit_code)
+    if exit_code != 0:
+        raise typer.Exit(exit_code)
 
 
 def _task_type_from_tool(tool_name: str):
