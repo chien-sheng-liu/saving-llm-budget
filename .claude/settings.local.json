@@ -9,7 +9,9 @@
       "Bash(echo \"EXIT:$?\")",
       "Bash(make playground:*)",
       "Bash(conda run:*)",
-      "Bash(chmod:*)"
+      "Bash(chmod:*)",
+      "Bash(ls /Users/morris/Desktop/Me/llm-tools-workflow/*.md)",
+      "Bash(ls /Users/morris/Desktop/Me/llm-tools-workflow/README*)"
     ]
   }
 }

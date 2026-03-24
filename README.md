@@ -1,4 +1,4 @@
-# slb — smart LLM budget CLI
+# slb — Saving LLM Budget CLI
 
 `slb` routes your coding tasks to the right AI tool automatically — Claude Code or Codex — based on what the task actually needs. An LLM judges each prompt and picks the most capable and cost-effective option, then hands off to the tool directly.
 
@@ -38,33 +38,67 @@ pip install git+https://github.com/chien-sheng-liu/saving-llm-budget.git
 
 ## Setup
 
-Run once after installing:
+**Step 1 — install tools**
 
 ```bash
 slb setup
 ```
 
-This checks your environment and installs any missing tools:
+Checks your environment and installs missing tools (Node.js, Claude Code, Codex CLI).
 
-```
-  ✓ Node.js   v22.0.0
-  ✓ npm       10.5.0
-  ○ Claude Code   not installed
-  Install Claude Code now? [Y/n]: Y
-  ✓ Claude Code installed!
-  ○ Codex   not installed
-  Install Codex now? [Y/n]: Y
-  ✓ Codex installed!
-```
-
-Then set your API keys:
+**Step 2 — initialise config**
 
 ```bash
-export ANTHROPIC_API_KEY="sk-ant-..."   # for Claude Code + LLM routing
-export OPENAI_API_KEY="sk-proj-..."     # for Codex
+slb init
 ```
 
-Add those lines to your `~/.zshrc` or `~/.bashrc` so they persist.
+Walks you through global settings and lets you configure Claude and Codex **separately** — pick API Key or Local CLI for each:
+
+```
+Provider authentication
+Set up how to connect to Claude and Codex separately.
+
+Configure Claude now? [Y/n]: Y
+
+  Claude — authentication
+    1  API Key  (set an environment variable)
+    2  Local CLI  (use the installed claude command)
+  Choose (1/2) [1]: 1
+  Environment variable for the API key [ANTHROPIC_API_KEY]:
+  Profile name [claude-api]:
+  ✓ Profile 'claude-api' saved (active).
+
+Configure Codex now? [Y/n]: Y
+
+  Codex — authentication
+    1  API Key  (set an environment variable)
+    2  Local CLI  (use the installed codex command)
+  Choose (1/2) [1]: 2
+  Command that launches the local CLI [codex]:
+  Profile name [codex-local]:
+  ✓ Profile 'codex-local' saved.
+```
+
+**If you chose API Key mode**, add the variables to your shell config so they persist:
+
+```bash
+# ~/.zshrc or ~/.bashrc
+export ANTHROPIC_API_KEY="sk-ant-..."   # Claude (API Key mode)
+export OPENAI_API_KEY="sk-proj-..."     # Codex  (API Key mode)
+```
+
+Then reload: `source ~/.zshrc`
+
+> `slb` reads directly from your shell environment — it does **not** load `.env` files.
+> Only set the keys for providers you configured in API Key mode; Local CLI mode requires no keys.
+
+You can update auth settings at any time:
+
+```bash
+slb profile add      # add a new profile
+slb profile list     # show all profiles
+slb profile switch   # change the active profile
+```
 
 ---
 
