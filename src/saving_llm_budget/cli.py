@@ -68,13 +68,16 @@ def main(ctx: typer.Context, version: bool = typer.Option(False, "--version", he
         console.print(f"saving-llm-budget v{__version__}")
         raise typer.Exit()
     if ctx.invoked_subcommand:
+        # Schedule REPL to start after the subcommand finishes.
+        ctx.call_on_close(lambda: console_loop(profile=None))
         return
-    console.print("[bold cyan]saving-llm-budget[/bold cyan] — cost-aware AI coding router")
-    console.print("1. Run [bold]saving-llm-budget init[/bold] to create config + first profile (Claude/Codex, API/local).")
-    console.print("2. Use [bold]saving-llm-budget ask[/bold] for interactive routing or [bold]run[/bold]/[bold]estimate[/bold] for scripted flows.")
-    console.print("3. Manage profiles anytime via [bold]saving-llm-budget profile list[/bold]/add/use/remove.")
-    console.print("Need help? Try [bold]saving-llm-budget --help[/bold] or [bold]saving-llm-budget explain[/bold].")
-    raise typer.Exit()
+    # No subcommand: drop straight into the interactive REPL.
+    # If config doesn't exist yet, run init first.
+    if not config_exists():
+        console.print("[bold cyan]saving-llm-budget[/bold cyan] — first run detected.")
+        console.print("Let's set things up before starting.\n")
+        ctx.invoke(init)
+    console_loop(profile=None)
 
 
 def _resolve_profile(
@@ -397,8 +400,6 @@ def init(force: bool = typer.Option(False, "--force", help="Overwrite existing c
         "The tool never transmits them during routing."
     )
     console.print(Panel(api_hint, title="API keys"))
-    if typer.confirm("Start the interactive console now?", default=True):
-        console_loop(profile=None)
 
 
 @app.command(help="Answer prompts so the router can recommend a provider.")
