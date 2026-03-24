@@ -10,10 +10,6 @@ readme = "README.md"
 authors = [{name = "Saving LLM Budget Team"}]
 license = {text = "MIT"}
 requires-python = ">=3.11"
-
-[project.urls]
-Homepage = "https://github.com/chien-sheng-liu/saving-llm-budget"
-Repository = "https://github.com/chien-sheng-liu/saving-llm-budget"
 dependencies = [
     "typer[all]>=0.9.0",
     "rich>=13.0.0",
@@ -23,6 +19,10 @@ dependencies = [
     "openai>=1.40.0",
     "prompt_toolkit>=3.0.0",
 ]
+
+[project.urls]
+Homepage = "https://github.com/chien-sheng-liu/saving-llm-budget"
+Repository = "https://github.com/chien-sheng-liu/saving-llm-budget"
 
 [project.optional-dependencies]
 dev = [
