@@ -125,6 +125,35 @@ def _profile_summary(profile_name: Optional[str], profile: Optional[ProviderProf
     return f"{profile_name} → {provider_value} via {mode_label}"
 
 
+def _provider_auth_wizard(provider: Provider) -> tuple[str, ProviderProfile]:
+    """Ask the user how to authenticate a single provider and return (profile_name, profile)."""
+    provider_label = provider.value  # "Claude" or "Codex"
+    default_command = "claude" if provider == Provider.CLAUDE else "codex"
+
+    console.print(f"\n[bold]{provider_label} — authentication[/bold]")
+    console.print("  [cyan]1[/cyan]  API Key  (set an environment variable)")
+    console.print(f"  [cyan]2[/cyan]  Local CLI  (use the installed [bold]{default_command}[/bold] command)")
+    raw = typer.prompt("Choose (1/2)", default="1").strip()
+    mode = ProfileMode.LOCAL_APP if raw == "2" else ProfileMode.API
+
+    default_name = f"{provider_label.lower()}-{'api' if mode == ProfileMode.API else 'local'}"
+    name = typer.prompt("Profile name", default=default_name).strip()
+
+    if mode == ProfileMode.API:
+        defaults = DEFAULT_API_KEY_ENVS.get(provider, [])
+        default_env = ",".join(defaults) if defaults else "API_KEY"
+        env_input = typer.prompt(
+            "Environment variable for the API key", default=default_env
+        )
+        envs = [item.strip() for item in env_input.split(",") if item.strip()]
+        profile = ProviderProfile(provider=provider, mode=mode, api_keys=envs)
+    else:
+        cli_command = typer.prompt("Command that launches the local CLI", default=default_command).strip()
+        profile = ProviderProfile(provider=provider, mode=mode, cli_command=cli_command or None)
+
+    return name, profile
+
+
 def _profile_wizard(preset_name: Optional[str] = None) -> tuple[str, ProviderProfile]:
     console.print("[bold]Profile setup[/bold]: choose which provider to connect and how.")
     provider = _prompt_enum(
@@ -333,24 +362,32 @@ def init(force: bool = typer.Option(False, "--force", help="Overwrite existing c
         allow_hybrid=allow_hybrid,
         max_budget_usd=max_budget_value,
     )
-    if typer.confirm("Create a provider profile now?", default=True):
-        profile_name, profile = _profile_wizard()
-        config = upsert_profile(config, profile_name, profile, set_active=True)
-        console.print(f"Profile '{profile_name}' created and set as active.")
-    else:
-        console.print(
-            "You can add profiles anytime: [bold]saving-llm-budget profile add[/bold]."
-        )
+
+    console.print("\n[bold]Provider authentication[/bold]")
+    console.print("Set up how to connect to Claude and Codex separately.\n")
+
+    first_profile_name: Optional[str] = None
+    for provider in [Provider.CLAUDE, Provider.CODEX]:
+        if typer.confirm(f"Configure {provider.value} now?", default=True):
+            profile_name, profile = _provider_auth_wizard(provider)
+            is_first = first_profile_name is None
+            config = upsert_profile(config, profile_name, profile, set_active=is_first)
+            if is_first:
+                first_profile_name = profile_name
+            console.print(f"[green]✓[/green] Profile '{profile_name}' saved{' (active)' if is_first else ''}.")
+        else:
+            console.print(f"Skipped {provider.value}. Add later: [bold]saving-llm-budget profile add[/bold].")
+
     location = save_config(config)
-    console.print(f"Config saved to {location}")
+    console.print(f"\nConfig saved to {location}")
     console.print("Next steps: run [bold]saving-llm-budget ask[/bold] for a guided session or [bold]saving-llm-budget profile list[/bold] to review connections.")
-    console.print(
-        Panel(
-            "Set [bold]ANTHROPIC_API_KEY[/bold] and [bold]OPENAI_API_KEY[/bold] in your environment."
-            " The tool never transmits them during routing.",
-            title="API keys",
-        )
+    api_hint = (
+        "If using API Key mode, make sure the environment variables are exported.\n"
+        "  Claude: [bold]ANTHROPIC_API_KEY[/bold]\n"
+        "  Codex:  [bold]OPENAI_API_KEY[/bold]\n"
+        "The tool never transmits them during routing."
     )
+    console.print(Panel(api_hint, title="API keys"))
     if typer.confirm("Start the interactive console now?", default=True):
         console_loop()
 
