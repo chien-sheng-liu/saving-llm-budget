@@ -27,12 +27,12 @@ def test_executor_api_mode_prints_placeholder(monkeypatch):
     profile = ProviderProfile(provider=Provider.CLAUDE, mode=ProfileMode.API, api_keys=["ANTHROPIC_API_KEY"])
     executor.execute(sample_task(), profile)
     output = buffer.getvalue()
-    assert "API execution placeholder" in output
+    # Title text changed to "API mode (direct call)"
+    assert "API mode" in output
     assert "ANTHROPIC_API_KEY" in output
 
 
 def test_executor_cli_mode_runs_command(monkeypatch):
-    import io
     import subprocess
 
     buffer = StringIO()
@@ -42,19 +42,15 @@ def test_executor_cli_mode_runs_command(monkeypatch):
 
     called = {}
 
-    class FakeProcess:
-        stdout = io.StringIO("output line\n")
+    class FakeCompletedProcess:
         returncode = 0
 
-        def wait(self):
-            pass
-
-    def fake_popen(cmd, **kwargs):
+    def fake_run(cmd, **kwargs):
         called["cmd"] = cmd
-        return FakeProcess()
+        return FakeCompletedProcess()
 
     monkeypatch.setattr("shutil.which", lambda x: f"/usr/bin/{x}")
-    monkeypatch.setattr("subprocess.Popen", fake_popen)
+    monkeypatch.setattr("subprocess.run", fake_run)
     executor.execute(sample_task(), profile)
     assert called["cmd"][0] == "echo"
     # For Codex, the prompt is passed as the last argument

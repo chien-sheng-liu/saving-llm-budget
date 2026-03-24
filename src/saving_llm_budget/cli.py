@@ -545,4 +545,264 @@ def console_loop(
     session.run()
 
 
+@app.command(name="chat", help="Auto-routing chat — type a prompt and the best model is picked for you.")
+def chat_cmd(
+    anthropic_key: Optional[str] = typer.Option(
+        None, "--anthropic-key", envvar="ANTHROPIC_API_KEY",
+        help="Anthropic API key (or set ANTHROPIC_API_KEY).",
+    ),
+    openai_key: Optional[str] = typer.Option(
+        None, "--openai-key", envvar="OPENAI_API_KEY",
+        help="OpenAI API key (or set OPENAI_API_KEY).",
+    ),
+) -> None:
+    from .chat import ChatSession
+
+    needs_key_prompt = not anthropic_key and not openai_key
+
+    if needs_key_prompt:
+        console.print(
+            Panel(
+                "[bold]slb chat[/bold] needs at least one API key to get started.\n\n"
+                "Keys are sent directly to the provider API and [bold]never stored to disk[/bold].\n"
+                "To skip this prompt in future sessions, export them in your shell:\n\n"
+                "  [dim]export ANTHROPIC_API_KEY=\"sk-ant-...\"[/dim]\n"
+                "  [dim]export OPENAI_API_KEY=\"sk-proj-...\"[/dim]",
+                border_style="cyan",
+                padding=(1, 3),
+            )
+        )
+
+    if not anthropic_key:
+        anthropic_key = typer.prompt(
+            "Anthropic API key  [dim](Claude models — blank to skip)[/dim]",
+            default="",
+            hide_input=True,
+            prompt_suffix="\n  › ",
+        )
+
+    if not openai_key:
+        openai_key = typer.prompt(
+            "OpenAI API key  [dim](GPT models — blank to skip)[/dim]",
+            default="",
+            hide_input=True,
+            prompt_suffix="\n  › ",
+        )
+
+    if not anthropic_key and not openai_key:
+        console.print(
+            "\n[red]  No API key provided.[/red]  "
+            "At least one key (Anthropic or OpenAI) is required.\n"
+            "  Get yours at [link]https://console.anthropic.com[/link] "
+            "or [link]https://platform.openai.com[/link]."
+        )
+        raise typer.Exit(code=1)
+
+    try:
+        config = load_config()
+    except ConfigNotFoundError:
+        config = None  # type: ignore[assignment]
+
+    session = ChatSession(
+        anthropic_key=anthropic_key,
+        openai_key=openai_key,
+        config=config,
+    )
+    session.run()
+
+
+@app.command(name="setup", help="Check your environment and install Claude Code / Codex CLI.")
+def setup_cmd() -> None:
+    from .setup_wizard import run_setup_wizard
+    run_setup_wizard(console)
+
+
+@app.command(name="do", help="Route your task to Claude Code or Codex and dispatch it.")
+def do_cmd(
+    task: str = typer.Argument(..., help="What you want to do, in plain English."),
+    repo_path: Optional[str] = typer.Option(
+        None, "--repo", "-r", help="Path to the repository (defaults to current directory)."
+    ),
+    auto_install: bool = typer.Option(
+        True, "--auto-install/--no-auto-install",
+        help="Offer to install missing CLI tools automatically.",
+    ),
+    anthropic_key: Optional[str] = typer.Option(
+        None, "--anthropic-key", envvar="ANTHROPIC_API_KEY",
+        help="Anthropic API key — used for LLM routing and API fallback.",
+    ),
+    openai_key: Optional[str] = typer.Option(
+        None, "--openai-key", envvar="OPENAI_API_KEY",
+        help="OpenAI API key — used for API fallback when Codex CLI is unavailable.",
+    ),
+) -> None:
+    """
+    Route your task with LLM judgement and dispatch to the right CLI tool.
+
+      slb do "Fix the null pointer in UserService"
+      slb do "Redesign the auth module" --repo ./backend
+    """
+    from .services.llm_router import LLMRouter, SessionCost
+    from .setup_wizard import ensure_tool, TOOLS
+    from .models import Provider, TaskRequest
+    from .config import ProviderProfile, ProfileMode
+
+    # ── 0. Load (or create) config ─────────────────────────────────────────────
+    try:
+        config = load_config()
+    except ConfigNotFoundError:
+        config = AppConfig()
+
+    # ── 1. First-run: ask routing preference if not set ────────────────────────
+    if config.routing_mode is None:
+        console.print(
+            Panel(
+                "[bold]How should slb choose between Claude Code and Codex?[/bold]\n\n"
+                "  [cyan]auto[/cyan]  — LLM decides and dispatches immediately [dim](recommended)[/dim]\n"
+                "  [cyan]ask[/cyan]   — LLM recommends, you confirm before each dispatch\n",
+                border_style="cyan",
+                padding=(1, 3),
+            )
+        )
+        raw = typer.prompt(
+            "Routing mode",
+            default="auto",
+            prompt_suffix="\n  › ",
+        ).strip().lower()
+        routing_mode = "ask" if raw.startswith("a") and "s" in raw else "auto"
+        config = config.model_copy(update={"routing_mode": routing_mode})
+        save_config(config)
+        console.print(
+            f"\n  [dim]Saved: routing_mode = [bold]{routing_mode}[/bold]"
+            "  (change anytime with [bold]slb config[/bold])[/dim]\n"
+        )
+
+    routing_mode = config.routing_mode or "auto"
+    session_cost = SessionCost()
+
+    # ── 2. LLM routing ─────────────────────────────────────────────────────────
+    router = LLMRouter(api_key=anthropic_key or "")
+    try:
+        with console.status("[dim]Thinking about which tool fits best…[/dim]", spinner="dots"):
+            decision = router.route(task)
+    except Exception as exc:
+        console.print(f"[red]Routing error: {exc}[/red]")
+        raise typer.Exit(1) from exc
+
+    session_cost.add(decision)
+
+    tool_name  = decision.tool                            # "claude" or "codex"
+    tool_label = "Claude Code" if tool_name == "claude" else "Codex"
+    style      = "blue" if tool_name == "claude" else "green"
+    conf_pct   = int(decision.confidence * 100)
+    llm_badge  = "[dim]LLM[/dim]" if decision.used_llm else "[dim]heuristic[/dim]"
+
+    console.print(
+        f"\n  [{style}]⚡ {tool_label}[/{style}]"
+        f"  [dim]{conf_pct}% conf  ·  {llm_badge}[/dim]\n"
+        f"  [dim italic]{decision.reasoning}[/dim italic]\n"
+    )
+
+    if decision.used_llm:
+        console.print(
+            f"  [dim]Routing: {decision.input_tokens} in / "
+            f"{decision.output_tokens} out  ·  ${decision.cost_usd:.5f}[/dim]\n"
+        )
+
+    # ── 3. "ask" mode: confirm before dispatch ─────────────────────────────────
+    if routing_mode == "ask":
+        other = "codex" if tool_name == "claude" else "claude"
+        other_label = "Codex" if other == "codex" else "Claude Code"
+        console.print(
+            f"  Dispatch to [bold]{tool_label}[/bold]?  "
+            f"([cyan]y[/cyan]=yes  [cyan]n[/cyan]=use {other_label}  [cyan]q[/cyan]=quit)"
+        )
+        answer = typer.prompt("", default="y", prompt_suffix=" › ").strip().lower()
+        if answer.startswith("q"):
+            console.print("[dim]  Aborted.[/dim]")
+            raise typer.Exit(0)
+        if answer.startswith("n"):
+            tool_name  = other
+            tool_label = other_label
+            style      = "green" if tool_name == "codex" else "blue"
+            console.print(f"\n  [dim]Switching to [bold]{tool_label}[/bold].[/dim]\n")
+
+    # ── 4. Ensure the tool is installed ───────────────────────────────────────
+    tool_ok = ensure_tool(tool_name, console, auto_install=auto_install)
+
+    if not tool_ok:
+        other = "codex" if tool_name == "claude" else "claude"
+        console.print(f"\n  [yellow]Trying {TOOLS[other]['label']} as fallback…[/yellow]")
+        tool_ok = ensure_tool(other, console, auto_install=auto_install)
+        if tool_ok:
+            tool_name  = other
+            tool_label = TOOLS[other]["label"]
+
+    if not tool_ok:
+        console.print(
+            Panel(
+                "[yellow]No CLI tools available.[/yellow]\n\n"
+                "Falling back to direct API call.\n"
+                "Run [bold]slb setup[/bold] to install Claude Code or Codex.",
+                border_style="yellow",
+                padding=(0, 2),
+            )
+        )
+        from .chat import ChatSession
+        if not anthropic_key and not openai_key:
+            console.print(
+                "[red]  No API keys available either.[/red]  "
+                "Set [bold]ANTHROPIC_API_KEY[/bold] or [bold]OPENAI_API_KEY[/bold]."
+            )
+            raise typer.Exit(1)
+        session = ChatSession(
+            anthropic_key=anthropic_key or "",
+            openai_key=openai_key or "",
+            config=config,
+        )
+        session._process(task)
+        _print_session_cost(console, session_cost)
+        session._print_farewell()
+        return
+
+    # ── 5. Dispatch ────────────────────────────────────────────────────────────
+    tr = TaskRequest(
+        description=task,
+        task_type=_task_type_from_tool(tool_name),
+        scope=__import__("saving_llm_budget.models", fromlist=["Scope"]).Scope.FEW_FILES,
+        clarity=__import__("saving_llm_budget.models", fromlist=["Clarity"]).Clarity.SOMEWHAT_AMBIGUOUS,
+        priority=__import__("saving_llm_budget.models", fromlist=["Priority"]).Priority.BALANCED,
+        long_context=False,
+        auto_modify=True,
+        repo_path=repo_path or ".",
+    )
+    profile = ProviderProfile(
+        provider=Provider.CLAUDE if tool_name == "claude" else Provider.CODEX,
+        mode=ProfileMode.LOCAL_APP,
+        cli_command=tool_name,
+    )
+
+    exit_code = _executor.execute(tr, profile)
+    _print_session_cost(console, session_cost)
+    raise typer.Exit(exit_code)
+
+
+def _task_type_from_tool(tool_name: str):
+    from .models import TaskType
+    return TaskType.FEATURE
+
+
+def _print_session_cost(console: Console, session_cost) -> None:
+    from .services.llm_router import SessionCost
+    if session_cost.calls == 0:
+        return
+    console.print(
+        f"\n[dim]  Session routing cost: {session_cost.summary()}[/dim]"
+    )
+    console.print(
+        "[dim]  Note: tokens used by Claude Code / Codex CLI are billed directly "
+        "to your provider account.[/dim]"
+    )
+
+
 __all__ = ["app"]

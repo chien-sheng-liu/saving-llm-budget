@@ -38,6 +38,10 @@ class AppConfig(BaseModel):
     max_budget_usd: float = Field(default=constants.DEFAULT_MAX_BUDGET_USD, ge=0)
     profiles: Dict[str, ProviderProfile] = Field(default_factory=dict)
     active_profile: Optional[str] = None
+    # "auto"  = LLM decides and dispatches immediately
+    # "ask"   = LLM recommends, user confirms before dispatch
+    # None    = not set yet (will prompt on first slb do run)
+    routing_mode: Optional[str] = None
 
     def get_profile(self, name: str) -> ProviderProfile:
         if name not in self.profiles:

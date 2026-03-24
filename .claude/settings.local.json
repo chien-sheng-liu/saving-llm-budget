@@ -3,7 +3,12 @@
     "allow": [
       "Bash(pip install:*)",
       "Bash(python:*)",
-      "Bash(echo \"EXIT: $?\")"
+      "Bash(echo \"EXIT: $?\")",
+      "Bash(slb:*)",
+      "Bash(pytest:*)",
+      "Bash(echo \"EXIT:$?\")",
+      "Bash(make playground:*)",
+      "Bash(conda run:*)"
     ]
   }
 }

@@ -16,6 +16,7 @@ dependencies = [
     "pydantic>=2.5.0",
     "PyYAML>=6.0",
     "anthropic>=0.40.0",
+    "openai>=1.40.0",
     "prompt_toolkit>=3.0.0",
 ]
 
@@ -26,6 +27,7 @@ dev = [
 
 [project.scripts]
 saving-llm-budget = "saving_llm_budget.cli:app"
+slb = "saving_llm_budget.cli:app"
 
 [tool.setuptools.package-dir]
 "" = "src"
