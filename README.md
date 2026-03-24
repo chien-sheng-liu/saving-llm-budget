@@ -1,128 +1,164 @@
-# saving-llm-budget
+# slb — smart LLM budget CLI
 
-`saving-llm-budget` is a cost-aware AI coding CLI. Describe any task in plain English and it automatically picks the most cost-effective model — Claude Haiku, Sonnet, Opus, GPT-4o-mini, or GPT-4o — then streams the answer directly in your terminal.
+`slb` routes your coding tasks to the right AI tool automatically — Claude Code or Codex — based on what the task actually needs. An LLM judges each prompt and picks the most capable and cost-effective option, then hands off to the tool directly.
 
-## Why this tool exists
+```
+slb do "Refactor the auth module to use JWT"
+  → LLM routing...
+  ⚡ Claude Code  93% conf
+     Architecture-level refactor across multiple files — Claude handles this better.
+  → Launching Claude Code...
+```
 
-- Model tokens are expensive — the wrong model wastes budget and time.
-- Claude and OpenAI models each have different strengths and price points; automatic routing matches task to model.
-- Every routing decision is transparent: you see which model was chosen, why, and what it cost.
+---
 
-## Quick start
+## Install
+
+**Option 1 — one-liner (recommended)**
 
 ```bash
-git clone https://github.com/chien-sheng-liu/saving-llm-budget.git
-cd saving-llm-budget
-pip install -e .
+curl -fsSL https://raw.githubusercontent.com/chien-sheng-liu/saving-llm-budget/main/install.sh | bash
+```
+
+**Option 2 — pipx** *(best for CLI tools, stays isolated)*
+
+```bash
+pipx install git+https://github.com/chien-sheng-liu/saving-llm-budget.git
+```
+
+**Option 3 — pip**
+
+```bash
+pip install git+https://github.com/chien-sheng-liu/saving-llm-budget.git
+```
+
+**Requirements:** Python 3.11+. Node.js is installed automatically by `slb setup` if missing.
+
+---
+
+## Setup
+
+Run once after installing:
+
+```bash
+slb setup
+```
+
+This checks your environment and installs any missing tools:
+
+```
+  ✓ Node.js   v22.0.0
+  ✓ npm       10.5.0
+  ○ Claude Code   not installed
+  Install Claude Code now? [Y/n]: Y
+  ✓ Claude Code installed!
+  ○ Codex   not installed
+  Install Codex now? [Y/n]: Y
+  ✓ Codex installed!
+```
+
+Then set your API keys:
+
+```bash
+export ANTHROPIC_API_KEY="sk-ant-..."   # for Claude Code + LLM routing
+export OPENAI_API_KEY="sk-proj-..."     # for Codex
+```
+
+Add those lines to your `~/.zshrc` or `~/.bashrc` so they persist.
+
+---
+
+## Usage
+
+### `slb do` — the main command
+
+```bash
+slb do "your task in plain English"
+```
+
+First run asks how you want routing to work — choose once, never asked again:
+
+```
+  auto  — LLM decides and dispatches immediately  (recommended)
+  ask   — LLM recommends, you confirm before dispatch
+```
+
+**Examples:**
+
+```bash
+slb do "Fix the null pointer in UserService.java line 42"
+# → Codex (clear, targeted bugfix)
+
+slb do "Redesign the authentication module to support OAuth2"
+# → Claude Code (architecture, ambiguous scope)
+
+slb do "Add docstrings to all public functions in utils.py"
+# → Codex (mechanical, well-defined)
+
+slb do "I'm not sure why the integration tests keep failing"
+# → Claude Code (exploratory, ambiguous)
+
+slb do "Refactor the payments module" --repo ./backend
+# → Claude Code, running inside ./backend
+```
+
+### `slb chat` — API-based chat (no local CLI needed)
+
+Streams responses directly from Claude or OpenAI. Good for questions, explanations, and quick tasks — no file changes.
+
+```bash
 slb chat
 ```
 
-On first run `slb chat` prompts for your API keys. You can also export them beforehand:
+Every message auto-routes to the right model (Haiku / Sonnet / Opus / GPT-4o-mini / GPT-4o) and shows cost per turn.
+
+### Other commands
+
+| Command | What it does |
+|---------|-------------|
+| `slb setup` | Install Claude Code and Codex CLI |
+| `slb do "..."` | Route + dispatch to Claude Code or Codex |
+| `slb chat` | Streaming API chat with auto model selection |
+| `slb explain` | Show the routing rules |
+| `slb estimate "..."` | Estimate complexity and cost without running |
+| `--help` | Help for any command |
+
+---
+
+## How routing works
+
+Every `slb do` call makes a small LLM request (Claude Haiku, ~$0.0003) to judge the task:
+
+```
+Task → Claude Haiku → { tool: "claude"|"codex", reasoning, confidence }
+```
+
+**Claude Code** is chosen for: architecture, refactoring, ambiguous tasks, code review, multi-file changes, deep reasoning.
+
+**Codex** is chosen for: targeted bugfixes, tests, docs, small well-defined changes, cost-sensitive work.
+
+If a tool isn't installed, `slb` offers to install it. If neither is available, it falls back to direct API calls.
+
+---
+
+## Cost tracking
+
+```
+  Routing: 312 in / 28 out  ·  $0.00027
+  Session routing cost: 3 calls  ·  $0.00081
+
+  Note: tokens used by Claude Code / Codex CLI are billed directly
+  to your Anthropic / OpenAI account.
+```
+
+`slb chat` tracks every turn (tokens in/out + cost per message + session total).
+
+---
+
+## Uninstall
 
 ```bash
-export ANTHROPIC_API_KEY="sk-ant-..."
-export OPENAI_API_KEY="sk-proj-..."
-slb chat
+pipx uninstall saving-llm-budget   # if installed via pipx
+pip uninstall saving-llm-budget    # if installed via pip
+rm -rf ~/.saving-llm-budget        # remove saved config
 ```
-
-At least one key is required; the other can be left blank to disable that provider.
-
-## `slb chat` — auto-routing chat
-
-Every message goes through a five-step pipeline:
-
-1. **Classify** — Claude Haiku reads your prompt and extracts task type, scope, clarity, and priority.
-2. **Route** — 20 weighted rules pick Claude vs. OpenAI.
-3. **Select model** — maps the routing decision to a specific model:
-
-| Task signal | Model selected |
-|---|---|
-| Simple / clear / cheapest | `claude-haiku-4-5` or `gpt-4o-mini` |
-| Balanced / medium complexity | `claude-sonnet-4-6` or `gpt-4o` |
-| Architecture / ambiguous / best quality | `claude-opus-4-6` or `gpt-4o` |
-
-4. **Stream** — the response streams character-by-character.
-5. **Cost** — tokens used and USD cost are printed after each reply.
-
-### Example session
-
-```
-You
-> Why does my Redis connection keep dropping in prod?
-
-→ claude-sonnet-4-6  (Claude, 78% confidence)  Debugging connectivity across services
-Assistant
-Redis connections drop in production for a few common reasons...
-
-512 in / 340 out — $0.0067  (session: $0.0067)
-────────────────────────────────────────────────────────
-You
-> Write a pytest fixture for a mock Redis client
-
-→ gpt-4o-mini  (Codex, 85% confidence)  Clear, small-scope test generation
-Assistant
-import pytest
-from unittest.mock import MagicMock
-...
-
-210 in / 180 out — $0.0001  (session: $0.0068)
-```
-
-### Chat commands
-
-| Command | Action |
-|---|---|
-| `/clear` | Clear conversation history |
-| `/cost` | Show total spend this session |
-| `/model` | Show last model used |
-| `/help` | Show help |
-| `/exit` | Quit |
-
-## Other commands
-
-| Command | Purpose |
-|---|---|
-| `slb init` | Create config + first provider profile |
-| `slb ask` | Interactive Q&A routing wizard |
-| `slb run "..."` | Non-interactive routing with flags |
-| `slb estimate "..."` | Complexity / cost / provider summary |
-| `slb explain` | Show the scoring rules and weights |
-| `slb profile add/list/use/remove` | Manage provider profiles |
-| `slb test [path]` | Run pytest with a Rich summary |
-| `slb console` | Persistent routing REPL |
-
-`saving-llm-budget` is an alias for `slb`.
-
-## Routing highlights
-
-- **Claude** gains weight on architecture, large refactors, ambiguity, repo-wide scope, long context, and quality-first priority.
-- **OpenAI** shines on bugfixes, tests/docs, small scopes, clear tasks, and cheapest priority.
-- **Hybrid** activates for feature/refactor tasks where planning with Claude then executing with GPT-4o-mini saves both cost and quality.
-- Scores start from baselines, apply rule weights, and incorporate complexity/cost signals from the estimator. The score spread becomes a confidence percentage.
-
-## Architecture
-
-```
-CLI (cli.py / chat.py)
-  → RoutingService (classify → estimate → route)
-    → ScoringEngine (20 weighted rules in router/rules.py)
-      → ModelSelector  → ClaudeChatAdapter / OpenAIChatAdapter
-```
-
-Key modules:
-
-| Module | Role |
-|---|---|
-| `router/rules.py` | 20 weighted heuristic routing rules |
-| `services/classifier.py` | LLM task classification via Claude Haiku (heuristic fallback) |
-| `services/model_selector.py` | Maps routing decision → specific model ID |
-| `providers/claude.py` | Streaming Claude adapter |
-| `providers/openai_provider.py` | Streaming OpenAI adapter |
-| `services/policies.py` | Budget guardrails |
-
-## Roadmap
-
-1. Persist routing decisions and acceptance rates for feedback loops.
-2. Enrich repo scanning with language heuristics and affected-file analysis.
-3. Expand policy engine for per-team / per-repo guardrails.
-4. JSON and CI-friendly output modes.
