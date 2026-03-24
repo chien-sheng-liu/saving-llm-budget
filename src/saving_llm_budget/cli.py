@@ -39,7 +39,7 @@ from .services.recommender import RoutingService
 from .services.tester import TestRunner
 from .utils import formatters
 
-app = typer.Typer(add_completion=False, no_args_is_help=True, rich_markup_mode="rich")
+app = typer.Typer(add_completion=False, no_args_is_help=False, rich_markup_mode="rich")
 profile_app = typer.Typer(help="Manage provider profiles", add_completion=False)
 app.add_typer(profile_app, name="profile")
 console = Console()

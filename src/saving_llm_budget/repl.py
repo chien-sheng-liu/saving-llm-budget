@@ -149,72 +149,64 @@ class ReplSession:
     # ------------------------------------------------------------------
 
     def _handle_task(self, description: str) -> None:
-        # Step 1: classify with spinner
-        classification = self._classify_with_spinner(description)
+        from .services.llm_router import LLMRouter
+        from .config import ProviderProfile
+        from .models import ProfileMode, Provider
 
-        # Step 2: show classification
-        self.console.print(formatters.classification_panel(classification))
+        anthropic_key = os.getenv("ANTHROPIC_API_KEY", "")
 
-        # Step 3: allow override before routing
-        if self._ask_override():
-            classification = self._interactive_override(classification)
-
-        # Step 4: route
+        # ── Route ─────────────────────────────────────────────────────────────
+        router = LLMRouter(api_key=anthropic_key)
         try:
-            profile_mode = self.profile.mode if self.profile else None
-            decision, _ = self.service.recommend_from_description(
-                description=description,
-                config=self.config,
-                profile_mode=profile_mode,
-                profile_name=self.profile_name,
-            )
-            # Patch in the (possibly overridden) classification fields
-            from .models import TaskRequest
-            patched_task = TaskRequest(
-                description=description,
-                task_type=classification.task_type,
-                scope=classification.scope,
-                clarity=classification.clarity,
-                priority=classification.priority,
-                long_context=classification.long_context,
-                auto_modify=classification.auto_modify,
-                allow_hybrid=self.config.allow_hybrid,
-                profile_name=self.profile_name,
-            )
-            decision = self.service.recommend(patched_task, self.config, profile_mode=profile_mode)
+            with Live(
+                Spinner("dots", text=Text(" Routing...", style="dim")),
+                console=self.console,
+                refresh_per_second=10,
+                transient=True,
+            ):
+                decision = router.route(description)
         except Exception as exc:  # noqa: BLE001
             self.console.print(f"[red]Routing error: {exc}[/red]")
             return
 
-        # Step 5: show decision
-        self.console.print(formatters.decision_panel(decision))
-        self.console.print(formatters.scores_table(decision.scores))
+        tool_name = decision.tool  # "claude" or "codex"
+        tool_label = "Claude Code" if tool_name == "claude" else "Codex"
+        style = "blue" if tool_name == "claude" else "green"
+        conf_pct = int(decision.confidence * 100)
+        llm_badge = "[dim]LLM[/dim]" if decision.used_llm else "[dim]heuristic[/dim]"
 
-        # Step 6: confirm + execute
-        executed = False
-        if self.profile:
-            try:
-                confirm = input("Execute this task? [Y/n]: ").strip().lower()
-            except (EOFError, KeyboardInterrupt):
-                confirm = "n"
+        self.console.print(
+            f"\n  [{style}]⚡ {tool_label}[/{style}]"
+            f"  [dim]{conf_pct}% conf  ·  {llm_badge}[/dim]\n"
+            f"  [dim italic]{decision.reasoning}[/dim italic]\n"
+        )
 
-            if confirm in {"", "y", "yes"}:
-                self.executor.execute(patched_task, self.profile)
-                executed = True
-            else:
-                self.console.print("[dim]Skipped execution.[/dim]")
-        else:
-            self.console.print(
-                "[yellow]No profile configured — cannot execute. Run `saving-llm-budget profile add`.[/yellow]"
-            )
+        # ── Execute ───────────────────────────────────────────────────────────
+        profile = ProviderProfile(
+            provider=Provider.CLAUDE if tool_name == "claude" else Provider.CODEX,
+            mode=ProfileMode.LOCAL_APP,
+            cli_command=tool_name,
+        )
+        self.executor.execute(
+            __import__("saving_llm_budget.models", fromlist=["TaskRequest"]).TaskRequest(
+                description=description,
+                task_type=TaskType.FEATURE,
+                scope=Scope.FEW_FILES,
+                clarity=Clarity.SOMEWHAT_AMBIGUOUS,
+                priority=Priority.BALANCED,
+                auto_modify=True,
+                allow_hybrid=self.config.allow_hybrid,
+            ),
+            profile,
+        )
 
-        # Step 7: record in history
+        # ── History ───────────────────────────────────────────────────────────
         self._history.append(
             {
                 "description": description,
-                "provider": decision.provider.value,
+                "provider": tool_label,
                 "confidence": decision.confidence,
-                "executed": executed,
+                "executed": True,
             }
         )
 
