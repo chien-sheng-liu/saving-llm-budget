@@ -140,13 +140,22 @@ def _provider_auth_wizard(provider: Provider) -> tuple[str, ProviderProfile]:
     name = typer.prompt("Profile name", default=default_name).strip()
 
     if mode == ProfileMode.API:
-        defaults = DEFAULT_API_KEY_ENVS.get(provider, [])
-        default_env = ",".join(defaults) if defaults else "API_KEY"
-        env_input = typer.prompt(
-            "Environment variable for the API key", default=default_env
-        )
-        envs = [item.strip() for item in env_input.split(",") if item.strip()]
-        profile = ProviderProfile(provider=provider, mode=mode, api_keys=envs)
+        console.print("  [dim]You can paste the key directly or point to an environment variable.[/dim]")
+        enter_directly = typer.confirm("  Enter the API key directly?", default=False)
+        if enter_directly:
+            key_value = typer.prompt("  API key", hide_input=True).strip()
+            console.print(
+                "  [yellow]Key stored in ~/.saving-llm-budget/config.yaml (permissions: 600).[/yellow]"
+            )
+            profile = ProviderProfile(provider=provider, mode=mode, api_key_value=key_value or None)
+        else:
+            defaults = DEFAULT_API_KEY_ENVS.get(provider, [])
+            default_env = ",".join(defaults) if defaults else "API_KEY"
+            env_input = typer.prompt(
+                "  Environment variable for the API key", default=default_env
+            )
+            envs = [item.strip() for item in env_input.split(",") if item.strip()]
+            profile = ProviderProfile(provider=provider, mode=mode, api_keys=envs)
     else:
         cli_command = typer.prompt("Command that launches the local CLI", default=default_command).strip()
         profile = ProviderProfile(provider=provider, mode=mode, cli_command=cli_command or None)
@@ -389,7 +398,7 @@ def init(force: bool = typer.Option(False, "--force", help="Overwrite existing c
     )
     console.print(Panel(api_hint, title="API keys"))
     if typer.confirm("Start the interactive console now?", default=True):
-        console_loop()
+        console_loop(profile=None)
 
 
 @app.command(help="Answer prompts so the router can recommend a provider.")
@@ -569,8 +578,9 @@ def console_loop(
 ) -> None:
     from .repl import ReplSession
 
+    profile_arg = profile if isinstance(profile, str) or profile is None else None
     config = _require_config()
-    config, active_profile_name, active_profile = _resolve_profile(config, profile)
+    config, active_profile_name, active_profile = _resolve_profile(config, profile_arg)
     session = ReplSession(
         config=config,
         profile_name=active_profile_name,

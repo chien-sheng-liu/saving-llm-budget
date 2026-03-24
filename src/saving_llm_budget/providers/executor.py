@@ -73,26 +73,94 @@ class ProviderExecutor:
         Returns the exit code (0 = success).
         """
         if profile.mode == ProfileMode.API:
-            self._show_api_placeholder(task, profile)
-            return 0
+            return self._dispatch_api(task, profile)
         return self._dispatch_cli(task, profile)
 
-    # ── API placeholder ────────────────────────────────────────────────────────
+    # ── API key resolution ─────────────────────────────────────────────────────
 
-    def _show_api_placeholder(self, task: TaskRequest, profile: ProviderProfile) -> None:
-        envs = profile.api_keys or ["API_KEY"]
-        message = dedent(
-            f"""
-            Provider : {profile.provider.value}
-            Mode     : API call
-            Env vars : {', '.join(envs)}
+    def _resolve_api_key(self, profile: ProviderProfile) -> str:
+        """Return the API key: stored value first, then env vars."""
+        if profile.api_key_value:
+            return profile.api_key_value
+        for env_var in profile.api_keys:
+            value = os.getenv(env_var, "")
+            if value:
+                return value
+        return ""
 
-            Task  → {task.description}
-            Type  → {task.task_type.value}
-            Scope → {task.scope.value}
-            """
-        ).strip()
-        self.console.print(Panel(message, title="API mode (direct call)", expand=False))
+    # ── API dispatch ───────────────────────────────────────────────────────────
+
+    def _dispatch_api(self, task: TaskRequest, profile: ProviderProfile) -> int:
+        api_key = self._resolve_api_key(profile)
+        if not api_key:
+            env_hint = ", ".join(profile.api_keys) if profile.api_keys else "the API key"
+            self.console.print(
+                Panel(
+                    f"[red]No API key found for {profile.provider.value}.[/red]\n\n"
+                    f"Set [bold]{env_hint}[/bold] in your environment, or re-run "
+                    "[bold]slb init[/bold] and enter the key directly.",
+                    title="Missing API key",
+                    border_style="red",
+                )
+            )
+            return 1
+
+        prompt = _build_prompt(task)
+        messages = [{"role": "user", "content": prompt}]
+        system = (
+            "You are an expert software engineer. "
+            "Complete the coding task below. Be concise and include only relevant code and explanation."
+        )
+
+        self.console.print(
+            Panel(
+                f"Provider : [bold]{profile.provider.value}[/bold]\n"
+                "Mode     : API\n\n"
+                "[dim]Streaming response...[/dim]",
+                title=f"Calling {profile.provider.value} API",
+                border_style="green",
+                padding=(0, 2),
+            )
+        )
+        self.console.print(Rule(style="dim"))
+
+        try:
+            if profile.provider == Provider.CLAUDE:
+                return self._stream_claude(api_key, messages, system)
+            elif profile.provider == Provider.CODEX:
+                return self._stream_openai(api_key, messages, system)
+            else:
+                self.console.print(f"[red]API mode not supported for {profile.provider.value}.[/red]")
+                return 1
+        except Exception as exc:  # noqa: BLE001
+            self.console.print(f"\n[red]API error: {exc}[/red]")
+            return 1
+
+    def _stream_claude(self, api_key: str, messages: list[dict], system: str) -> int:
+        from .claude import ClaudeChatAdapter
+        from .. import constants
+
+        adapter = ClaudeChatAdapter(api_key=api_key)
+        for chunk in adapter.stream(constants.CLAUDE_SONNET, messages, system=system):
+            self.console.print(chunk, end="")
+        self.console.print()
+        self.console.print(Rule(style="dim"))
+        in_tok, out_tok = adapter.last_usage
+        self.console.print(f"[dim]Tokens: {in_tok} in / {out_tok} out[/dim]")
+        return 0
+
+    def _stream_openai(self, api_key: str, messages: list[dict], system: str) -> int:
+        from .openai_provider import OpenAIChatAdapter
+        from .. import constants
+
+        adapter = OpenAIChatAdapter(api_key=api_key)
+        for chunk in adapter.stream(constants.OPENAI_STANDARD, messages, system=system):
+            self.console.print(chunk, end="")
+        self.console.print()
+        self.console.print(Rule(style="dim"))
+        in_tok, out_tok = adapter.last_usage
+        self.console.print(f"[dim]Tokens: {in_tok} in / {out_tok} out[/dim]")
+        return 0
 
     # ── CLI dispatch ───────────────────────────────────────────────────────────
 

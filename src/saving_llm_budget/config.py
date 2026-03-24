@@ -29,6 +29,9 @@ class ProviderProfile(BaseModel):
     provider: Provider
     mode: ProfileMode
     api_keys: list[str] = Field(default_factory=list)
+    # Actual key value entered directly by the user (stored with 600 permissions).
+    # Takes precedence over api_keys (env var names) when resolving the key at runtime.
+    api_key_value: Optional[str] = None
     cli_command: Optional[str] = None
 
 
@@ -82,6 +85,8 @@ def save_config(config: AppConfig, path: Path | None = None) -> Path:
     location = path or config_path()
     paths.ensure_config_directory(location.parent)
     io.write_yaml(location, config.model_dump(mode="json"))
+    # Restrict permissions so stored API key values are not world-readable.
+    location.chmod(0o600)
     return location
 
 
